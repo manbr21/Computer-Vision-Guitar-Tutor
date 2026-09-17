@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ChordAR - ArUco markers for printing</title>
+<style>
+  body { font-family: sans-serif; }
+  .marker { display: inline-block; text-align: center; margin: 12mm; }
+  .marker svg { width: 40mm; height: 40mm; display: block; margin: 0 auto; }
+  .marker p { margin-top: 4mm; font-size: 14pt; font-weight: bold; }
+  @media print {
+    .marker { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <p>Print at 100% scale / "Actual size" (do NOT use "Fit to page").</p>
+
+  <div class="marker">
+    <svg viewBox="0 0 6 6" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><rect x="0" y="0" width="6" height="6" fill="black"></rect><rect width="1" height="1" x="1" y="1" fill="white"></rect><rect width="1.5" height="1" x="3" y="1" fill="white"></rect><rect width="1" height="1" x="4" y="1" fill="white"></rect><rect width="1" height="1.5" x="4" y="1" fill="white"></rect><rect width="1" height="1" x="2" y="2" fill="white"></rect><rect width="1" height="1" x="4" y="2" fill="white"></rect><rect width="1" height="1.5" x="4" y="2" fill="white"></rect><rect width="1.5" height="1" x="3" y="3" fill="white"></rect><rect width="1" height="1.5" x="3" y="3" fill="white"></rect><rect width="1" height="1" x="4" y="3" fill="white"></rect><rect width="1" height="1" x="3" y="4" fill="white"></rect></svg>
+    <p>ID 0 - Top-Left Corner</p>
+  </div>
+
+  <div class="marker">
+    <svg viewBox="0 0 6 6" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><rect x="0" y="0" width="6" height="6" fill="black"></rect><rect width="1.5" height="1" x="1" y="2" fill="white"></rect><rect width="1" height="1.5" x="1" y="2" fill="white"></rect><rect width="1.5" height="1" x="2" y="2" fill="white"></rect><rect width="1.5" height="1" x="3" y="2" fill="white"></rect><rect width="1" height="1" x="4" y="2" fill="white"></rect><rect width="1" height="1.5" x="4" y="2" fill="white"></rect><rect width="1" height="1" x="1" y="3" fill="white"></rect><rect width="1" height="1.5" x="1" y="3" fill="white"></rect><rect width="1" height="1" x="4" y="3" fill="white"></rect><rect width="1" height="1" x="1" y="4" fill="white"></rect><rect width="1" height="1" x="3" y="4" fill="white"></rect></svg>
+    <p>ID 1 - Top-Right Corner</p>
+  </div>
+
+  <div class="marker">
+    <svg viewBox="0 0 6 6" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><rect x="0" y="0" width="6" height="6" fill="black"></rect><rect width="1.5" height="1" x="3" y="1" fill="white"></rect><rect width="1" height="1.5" x="3" y="1" fill="white"></rect><rect width="1" height="1" x="4" y="1" fill="white"></rect><rect width="1" height="1.5" x="4" y="1" fill="white"></rect><rect width="1.5" height="1" x="3" y="2" fill="white"></rect><rect width="1" height="1.5" x="3" y="2" fill="white"></rect><rect width="1" height="1" x="4" y="2" fill="white"></rect><rect width="1" height="1" x="3" y="3" fill="white"></rect><rect width="1.5" height="1" x="1" y="4" fill="white"></rect><rect width="1" height="1" x="2" y="4" fill="white"></rect><rect width="1" height="1" x="4" y="4" fill="white"></rect></svg>
+    <p>ID 2 - Bottom-Right Corner</p>
+  </div>
+
+  <div class="marker">
+    <svg viewBox="0 0 6 6" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><rect x="0" y="0" width="6" height="6" fill="black"></rect><rect width="1" height="1" x="1" y="1" fill="white"></rect><rect width="1" height="1.5" x="1" y="1" fill="white"></rect><rect width="1" height="1" x="4" y="1" fill="white"></rect><rect width="1" height="1.5" x="4" y="1" fill="white"></rect><rect width="1" height="1" x="1" y="2" fill="white"></rect><rect width="1" height="1" x="4" y="2" fill="white"></rect><rect width="1" height="1" x="2" y="3" fill="white"></rect><rect width="1" height="1.5" x="2" y="3" fill="white"></rect><rect width="1.5" height="1" x="2" y="4" fill="white"></rect><rect width="1" height="1" x="3" y="4" fill="white"></rect></svg>
+    <p>ID 3 - Bottom-Left Corner</p>
+  </div>
+</body>
+</html>
