@@ -11,16 +11,28 @@ detector = aruco.ArucoDetector(aruco_dict, parameters)
 valid_ids = {0, 1, 2, 3}
 history = {i: deque(maxlen=5) for i in valid_ids}
 last_seen = {}
+_debug_frame_count = 0
 
 # Standard tuning (low E to high E)
 string_labels = ["E", "A", "D", "G", "B", "E"]
 
 def map_guitar(frame):
-    """Process a frame, detect ArUco fretboard, draw frets + strings, 
+    """Process a frame, detect ArUco fretboard, draw frets + strings,
     return annotated display + fret/string positions."""
+    global _debug_frame_count
     h, w = frame.shape[:2]
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    corners, ids, _ = detector.detectMarkers(gray)
+    corners, ids, rejected = detector.detectMarkers(gray)
+
+    # Log every ~30 frames (not every frame, to avoid flooding the terminal) what
+    # OpenCV is actually seeing: how many marker candidates were found, how many
+    # were successfully decoded, and which IDs. "rejected" are square-shaped
+    # candidates that looked like a marker but didn't match the 4x4_1000
+    # dictionary - a high rejected count usually points to bad contrast/lighting.
+    _debug_frame_count += 1
+    if _debug_frame_count % 30 == 0:
+        found_ids = ids.flatten().tolist() if ids is not None else []
+        print(f"[ArUco debug] Detected IDs: {found_ids} | rejected candidates: {len(rejected)}")
 
     display = cv2.flip(frame, 1)
     quad_points = {}
@@ -74,6 +86,7 @@ def map_guitar(frame):
 
         # frets
         prev_frac = 0
+        prev_left = TL.copy()
         num_frets = 12
         for n in range(1, num_frets + 1):
             fret_frac = prev_frac + (1 - prev_frac) / 17.817
@@ -83,7 +96,15 @@ def map_guitar(frame):
             cv2.putText(display, f"{n}", tuple((fret_left + [5, -5]).astype(int)),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
-            fret_positions.append((int(fret_left[0]), int(fret_left[1])))  # store x,y of left edge
+            # Store the MIDDLE of the fret space (between the previous wire and this
+            # one), not the wire itself - that's where the finger should actually
+            # press the string in practice, not on top of the metal bar. The yellow
+            # line drawn above still marks the real wire (visual fidelity of the
+            # overlay); only the point used as the target/match changes.
+            fret_mid = (prev_left + fret_left) / 2
+            fret_positions.append((int(fret_mid[0]), int(fret_mid[1])))
+
+            prev_left = fret_left
             prev_frac = fret_frac
 
         # strings
