@@ -1,6 +1,7 @@
 import cv2
 import mediapipe as mp
 import math
+import time
 from map_hands import get_fingertip_positions
 from map_fret_board import map_guitar
 from graphics_code import draw_chord_diagram
@@ -78,14 +79,52 @@ def compute_accuracy_from_lists(expected_list, observed_list, max_distance=80):
     return pct, details
 
 
+def compute_accuracy_discrete(expected_string_frets, fingertips, fret_xs, string_ys_ordered, nearest_fn):
+    """
+    Compares expected (string, fret) pairs against observed fingertips, requiring
+    the correct fret AND the correct string separately, each with its own
+    threshold proportional to the real pixel spacing. A single euclidean distance
+    (used before) doesn't work here because the neck width (6 strings) is much
+    smaller in pixels than the neck length (12 frets) - a radius big enough to
+    find the right fret ends up accepting any string.
+    """
+    if not expected_string_frets:
+        return 0
+
+    if len(string_ys_ordered) > 1:
+        string_gap = abs(string_ys_ordered[-1] - string_ys_ordered[0]) / (len(string_ys_ordered) - 1)
+    else:
+        string_gap = 50
+    string_threshold = max(string_gap / 2, 10)
+
+    fret_gaps = [abs(fret_xs[i + 1] - fret_xs[i]) for i in range(len(fret_xs) - 1)]
+    fret_threshold = max((min(fret_gaps) / 2) if fret_gaps else 40, 15)
+
+    observed_matches = set()
+    for (x, y) in fingertips.values():
+        f_idx = nearest_fn(x, fret_xs, threshold=fret_threshold)
+        s_idx = nearest_fn(y, string_ys_ordered, threshold=string_threshold)
+        if f_idx is not None and s_idx is not None:
+            observed_matches.add((s_idx, f_idx + 1))
+
+    correct = sum(1 for e in expected_string_frets if e in observed_matches)
+    return int(100 * correct / len(expected_string_frets))
+
+
 while True:
     ret, frame = cap.read()
     if not ret:
         break
 
+    loop_start = time.time()
+
     raw_frame = frame.copy()
     display, fret_positions, string_positions = map_guitar(frame)
     _, fingertips, landmarks_list = get_fingertip_positions(raw_frame)
+
+    if not (fret_positions and string_positions):
+        cv2.putText(display, "ArUco markers not detected (IDs 0-3)", (20, 90),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
     # After mapping the guitar and getting fret/string positions:
     if fret_positions and string_positions:
@@ -132,6 +171,7 @@ while True:
     # ===============================================================
     # Prepare lists for accuracy checking (always defined)
     expected_screen_positions = []
+    expected_string_frets = []
     observed_screen_points = [ (x,y) for (_, (x,y)) in fingertips.items() ]
 
     if current_chord and fret_positions and string_positions:
@@ -145,7 +185,7 @@ while True:
                     x = fret_xs[fret-1]
                 else:
                     x = fret_xs[-1]
-                
+
                 # Draw yellow filled circle + white outline
                 cv2.circle(display, (x, y), 8, (0, 255, 255), -1)
                 cv2.circle(display, (x, y), 8, (255, 255, 255), 2)
@@ -153,10 +193,15 @@ while True:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
                 # record expected screen-space position for accuracy check
                 expected_screen_positions.append((x,y))
+                expected_string_frets.append((string_idx, fret))
 
-    # compute accuracy between observed_screen_points and expected_screen_positions (only when expected exists)
-    if expected_screen_positions:
-        pct, details = compute_accuracy_from_lists(expected_screen_positions, observed_screen_points, max_distance=60)
+    # compute accuracy: needs the right string AND the right fret, not just "close
+    # by" on screen (see compute_accuracy_discrete - a single euclidean distance
+    # mixed both axes together)
+    if expected_string_frets:
+        pct = compute_accuracy_discrete(
+            expected_string_frets, fingertips, fret_xs, string_ys[::-1], nearest
+        )
         cv2.putText(display, f"Accuracy: {pct}%", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0) if pct==100 else (0,165,255), 2)
     else:
         # no expected points (open chord/no fretted notes) - show N/A
@@ -181,6 +226,10 @@ while True:
     # Display instructions
     cv2.putText(display, "Press 1-8 to change chords, ESC to exit", (20, display.shape[0] - 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+    fps = 1.0 / (time.time() - loop_start) if time.time() != loop_start else 0.0
+    cv2.putText(display, f"FPS: {fps:.1f}", (display.shape[1] - 120, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
     cv2.imshow("Hand + Guitar Tracking", display)
 
