@@ -8,6 +8,7 @@ from graphics_code import draw_chord_diagram
 import graphics_code
 
 from match_chord import match_chord
+from calibration import run_calibration
 
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
@@ -18,6 +19,11 @@ custom_connections = [conn for conn in mp_hands.HAND_CONNECTIONS if conn not in 
 string_labels = ["E", "A", "D", "G", "B", "E"]
 
 cap = cv2.VideoCapture(0)
+
+if not run_calibration(cap):
+    cap.release()
+    cv2.destroyAllWindows()
+    exit()
 
 current_chord = "C"  # <-- set this dynamically if needed
 
