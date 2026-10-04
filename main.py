@@ -4,7 +4,7 @@ import math
 import time
 from map_hands import get_fingertip_positions
 from map_fret_board import map_guitar
-from graphics_code import draw_chord_diagram
+from graphics_code import draw_chord_diagram, draw_chord_instructions
 import graphics_code
 
 from match_chord import match_chord
@@ -164,20 +164,26 @@ while True:
         put_text_bg(display, "Accuracy: N/A", (20, 60), 0.8, (200,200,200))
 
 
-    # Draw chord diagram on the frame
+    # Draw chord diagram on the frame, with the finger instructions in a box below it
+    diagram_x, diagram_y, diagram_w, diagram_h = display.shape[1] - 220, 20, 200, 190
     draw_chord_diagram(
         display,
-        x=display.shape[1] - 220,
-        y=20,
-        width=200,
-        height=180,
-        show_instructions=True,
+        x=diagram_x,
+        y=diagram_y,
+        width=diagram_w,
+        height=diagram_h,
+        current_chord=current_chord
+    )
+    draw_chord_instructions(
+        display,
+        x=diagram_x,
+        y=diagram_y + diagram_h + 10,
+        width=diagram_w,
         current_chord=current_chord
     )
 
     put_text_bg(display, f"Current Chord: {current_chord}", (20, 30), 0.7, (255, 255, 255))
 
-    # Display instructions
     put_text_bg(display, "Press 1-8 to change chords, ESC to exit", (20, display.shape[0] - 20),
                 0.5, (255, 255, 255), thickness=1)
 
