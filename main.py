@@ -101,6 +101,16 @@ def compute_accuracy_discrete(expected_string_frets, fingertips, neck):
     return int(100 * correct / len(expected_string_frets))
 
 
+def put_text_bg(img, text, org, scale, color, thickness=2, pad=6):
+    """cv2.putText over a darkened box so the text stays readable on any background."""
+    (w, h), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)
+    x, y = org
+    x0, y0 = max(x - pad, 0), max(y - h - pad, 0)
+    x1, y1 = min(x + w + pad, img.shape[1]), min(y + baseline + pad, img.shape[0])
+    img[y0:y1, x0:x1] = cv2.convertScaleAbs(img[y0:y1, x0:x1], alpha=0.35)
+    cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness)
+
+
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -113,8 +123,7 @@ while True:
     _, fingertips, landmarks_list = get_fingertip_positions(raw_frame)
 
     if neck is None:
-        cv2.putText(display, "ArUco markers not detected (IDs 0-3)", (20, 90),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        put_text_bg(display, "ArUco markers not detected (IDs 0-3)", (20, 90), 0.6, (0, 0, 255))
 
     if neck is not None:
         # Draw fingertip positions
@@ -149,34 +158,31 @@ while True:
 
     if expected_string_frets:
         pct = compute_accuracy_discrete(expected_string_frets, fingertips, neck)
-        cv2.putText(display, f"Accuracy: {pct}%", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0) if pct==100 else (0,165,255), 2)
+        put_text_bg(display, f"Accuracy: {pct}%", (20, 60), 0.8, (0,255,0) if pct==100 else (0,165,255))
     else:
         # no expected points (open chord/no fretted notes) - show N/A
-        cv2.putText(display, f"Accuracy: N/A", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200,200,200), 2)
+        put_text_bg(display, "Accuracy: N/A", (20, 60), 0.8, (200,200,200))
 
 
     # Draw chord diagram on the frame
     draw_chord_diagram(
         display,
-        x=20,
-        y=display.shape[0]-220,
+        x=display.shape[1] - 220,
+        y=20,
         width=200,
         height=180,
         show_instructions=True,
         current_chord=current_chord
     )
 
-    # Display current chord
-    cv2.putText(display, f"Current Chord: {current_chord}", (20, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    
+    put_text_bg(display, f"Current Chord: {current_chord}", (20, 30), 0.7, (255, 255, 255))
+
     # Display instructions
-    cv2.putText(display, "Press 1-8 to change chords, ESC to exit", (20, display.shape[0] - 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    put_text_bg(display, "Press 1-8 to change chords, ESC to exit", (20, display.shape[0] - 20),
+                0.5, (255, 255, 255), thickness=1)
 
     fps = 1.0 / (time.time() - loop_start) if time.time() != loop_start else 0.0
-    cv2.putText(display, f"FPS: {fps:.1f}", (display.shape[1] - 120, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+    put_text_bg(display, f"FPS: {fps:.1f}", (display.shape[1] - 130, display.shape[0] - 20), 0.7, (0, 255, 0))
 
     cv2.imshow("Hand + Guitar Tracking", display)
 
