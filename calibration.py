@@ -1,30 +1,14 @@
 import cv2
 
-from map_fret_board import map_guitar
+from map_fret_board import map_guitar, NUM_STRINGS
 from map_hands import get_fingertip_positions
 
-MIN_STRING_GAP = 18          # px between adjacent strings; below this, string discrimination gets unreliable
+MIN_STRING_GAP = 15          # px between adjacent strings; below this, string discrimination gets unreliable
 STABLE_FRAMES_REQUIRED = 20  # ~a second of good, uninterrupted framing before auto-advancing
 
 GOOD_COLOR = (0, 255, 0)
 WARN_COLOR = (0, 165, 255)
 BAD_COLOR = (0, 0, 255)
-
-
-def _string_and_fret_gaps(fret_positions, string_positions):
-    """Same spacing math used for the accuracy thresholds in main.py, reused here
-    to judge whether the current framing/distance is good enough before starting."""
-    string_ys = [y for (_, y) in string_positions]
-    if len(string_ys) > 1:
-        string_gap = abs(string_ys[-1] - string_ys[0]) / (len(string_ys) - 1)
-    else:
-        string_gap = 0
-
-    fret_xs = [x for (x, _) in fret_positions]
-    fret_gaps = [abs(fret_xs[i + 1] - fret_xs[i]) for i in range(len(fret_xs) - 1)]
-    fret_gap = min(fret_gaps) if fret_gaps else 0
-
-    return string_gap, fret_gap
 
 
 def run_calibration(cap):
@@ -46,14 +30,11 @@ def run_calibration(cap):
         if not ret:
             return False
 
-        display, fret_positions, string_positions = map_guitar(frame)
+        display, neck = map_guitar(frame)
         _, fingertips, _ = get_fingertip_positions(frame.copy())
 
-        markers_ok = bool(fret_positions and string_positions)
-        if markers_ok:
-            string_gap, _fret_gap = _string_and_fret_gaps(fret_positions, string_positions)
-        else:
-            string_gap = 0
+        markers_ok = neck is not None
+        string_gap = neck.width_px() / NUM_STRINGS if markers_ok else 0
         distance_ok = markers_ok and string_gap >= MIN_STRING_GAP
         hand_ok = bool(fingertips)
 

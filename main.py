@@ -85,35 +85,19 @@ def compute_accuracy_from_lists(expected_list, observed_list, max_distance=80):
     return pct, details
 
 
-def compute_accuracy_discrete(expected_string_frets, fingertips, fret_xs, string_ys_ordered, nearest_fn):
+def compute_accuracy_discrete(expected_string_frets, fingertips, neck):
     """
-    Compares expected (string, fret) pairs against observed fingertips, requiring
-    the correct fret AND the correct string separately, each with its own
-    threshold proportional to the real pixel spacing. A single euclidean distance
-    (used before) doesn't work here because the neck width (6 strings) is much
-    smaller in pixels than the neck length (12 frets) - a radius big enough to
-    find the right fret ends up accepting any string.
+    Percent of expected (string, fret) pairs covered by a fingertip. Each fingertip
+    is mapped into neck coordinates, so the string comes from its position across
+    the neck and the fret from its position along it. Horizontal tolerance is the
+    whole fret space (between the two wires), not just its center; vertically the
+    finger must be inside the string's lane.
     """
     if not expected_string_frets:
         return 0
 
-    if len(string_ys_ordered) > 1:
-        string_gap = abs(string_ys_ordered[-1] - string_ys_ordered[0]) / (len(string_ys_ordered) - 1)
-    else:
-        string_gap = 50
-    string_threshold = max(string_gap / 2, 10)
-
-    fret_gaps = [abs(fret_xs[i + 1] - fret_xs[i]) for i in range(len(fret_xs) - 1)]
-    fret_threshold = max((min(fret_gaps) / 2) if fret_gaps else 40, 15)
-
-    observed_matches = set()
-    for (x, y) in fingertips.values():
-        f_idx = nearest_fn(x, fret_xs, threshold=fret_threshold)
-        s_idx = nearest_fn(y, string_ys_ordered, threshold=string_threshold)
-        if f_idx is not None and s_idx is not None:
-            observed_matches.add((s_idx, f_idx + 1))
-
-    correct = sum(1 for e in expected_string_frets if e in observed_matches)
+    observed = {neck.locate(x, y) for (x, y) in fingertips.values()}
+    correct = sum(1 for e in expected_string_frets if e in observed)
     return int(100 * correct / len(expected_string_frets))
 
 
@@ -125,89 +109,46 @@ while True:
     loop_start = time.time()
 
     raw_frame = frame.copy()
-    display, fret_positions, string_positions = map_guitar(frame)
+    display, neck = map_guitar(frame)
     _, fingertips, landmarks_list = get_fingertip_positions(raw_frame)
 
-    if not (fret_positions and string_positions):
+    if neck is None:
         cv2.putText(display, "ArUco markers not detected (IDs 0-3)", (20, 90),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-    # After mapping the guitar and getting fret/string positions:
-    if fret_positions and string_positions:
-        fret_xs = [x for (x,y) in fret_positions]
-        string_ys = [y for (x,y) in string_positions]
-
-        def nearest(value, candidates, threshold=50):
-            """Find nearest candidate within threshold, return None if too far"""
-            if not candidates:
-                return None
-            
-            # Find the closest candidate
-            closest_idx = min(range(len(candidates)), key=lambda i: abs(candidates[i] - value))
-            closest_distance = abs(candidates[closest_idx] - value)
-            
-            # Only return the index if within threshold, otherwise return None
-            if closest_distance <= threshold:
-                return closest_idx
-            else:
-                return None
-
+    if neck is not None:
         # Draw fingertip positions
         for name, (x, y) in fingertips.items():
-            fret_idx = nearest(x, fret_xs)
-            string_idx = nearest(y, string_ys)
+            hit = neck.locate(x, y)
 
-            if fret_idx is not None and string_idx is not None:
-                fret_idx += 1
-                note_text = f"{name}: String {string_labels[string_idx]}, Fret {fret_idx}"
-                print(note_text)
-                # cv2.putText(display, note_text, (x+10, y-10),
-                #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2)
+            if hit is not None:
+                string_idx, fret_idx = hit
+                print(f"{name}: String {string_labels[string_idx]}, Fret {fret_idx}")
             else:
-                # Finger is not near any string - show as open/not playing
-                note_text = f"{name}: Not on string"
-                print(note_text)
-                # cv2.putText(display, note_text, (x+10, y-10),
-                #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128,128,128), 2)
+                print(f"{name}: Not on string")
 
             cv2.circle(display, (x, y), 5, (0, 255, 0), -1)
 
     # ===============================================================
     # DRAW CURRENT CHORD ON FRETBOARD (yellow overlay)
     # ===============================================================
-    # Prepare lists for accuracy checking (always defined)
-    expected_screen_positions = []
     expected_string_frets = []
-    observed_screen_points = [ (x,y) for (_, (x,y)) in fingertips.items() ]
 
-    if current_chord and fret_positions and string_positions:
+    if current_chord and neck is not None:
         for string_idx, fret in enumerate(graphics_code.CHORD_LIBRARY[current_chord]['frets']):
             finger_num = graphics_code.CHORD_LIBRARY[current_chord]['fingers'][string_idx]
             if fret is not None and fret > 0 and finger_num:
-                # Map string index to y position
-                y = string_ys[::-1][string_idx]
-                # Map fret index to x position
-                if fret <= len(fret_xs):
-                    x = fret_xs[fret-1]
-                else:
-                    x = fret_xs[-1]
+                x, y = neck.target(string_idx, fret)
 
                 # Draw yellow filled circle + white outline
                 cv2.circle(display, (x, y), 8, (0, 255, 255), -1)
                 cv2.circle(display, (x, y), 8, (255, 255, 255), 2)
                 cv2.putText(display, str(finger_num), (x-7, y+7),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
-                # record expected screen-space position for accuracy check
-                expected_screen_positions.append((x,y))
                 expected_string_frets.append((string_idx, fret))
 
-    # compute accuracy: needs the right string AND the right fret, not just "close
-    # by" on screen (see compute_accuracy_discrete - a single euclidean distance
-    # mixed both axes together)
     if expected_string_frets:
-        pct = compute_accuracy_discrete(
-            expected_string_frets, fingertips, fret_xs, string_ys[::-1], nearest
-        )
+        pct = compute_accuracy_discrete(expected_string_frets, fingertips, neck)
         cv2.putText(display, f"Accuracy: {pct}%", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0) if pct==100 else (0,165,255), 2)
     else:
         # no expected points (open chord/no fretted notes) - show N/A
