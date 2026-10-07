@@ -7,7 +7,6 @@ from map_fret_board import map_guitar
 from graphics_code import draw_chord_diagram, draw_chord_instructions
 import graphics_code
 
-from match_chord import match_chord
 from calibration import run_calibration, PlacementMonitor
 from ui_utils import put_text_bg
 
