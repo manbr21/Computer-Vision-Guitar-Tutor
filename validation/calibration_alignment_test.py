@@ -1,5 +1,5 @@
 """
-Synthetic check of the calibration alignment metrics and hints (calibration.py).
+Synthetic check of the placement metrics, hints and monitor (chordar/placement.py).
 
 A virtual camera projects the neck onto the image in the ideal spot and in deliberately wrong ones
 (too close, too far, shifted, rotated, tilted); the test checks that the measured values and the
@@ -15,9 +15,9 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import calibration as cal
 import synthetic_parallax_test as syn
-from map_fret_board import Fretboard
+from chordar import placement as cal
+from chordar.geometry import Fretboard
 
 
 def neck_corners(across=0.0, along=0.0, distance=cal.IDEAL_DISTANCE_MM, shift=(0.0, 0.0), rotate_deg=0.0):

@@ -1,5 +1,5 @@
 """
-Synthetic check of the fingertip parallax correction in map_fret_board.Fretboard.
+Synthetic check of the fingertip parallax correction in chordar.geometry.Fretboard.
 
 A virtual pinhole camera looks at a virtual guitar neck from a chosen angle. Fingertips are
 placed FINGER_HEIGHT_MM above the center of each string/fret, projected to pixels with noise,
@@ -16,12 +16,13 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import map_fret_board as mfb
-from map_fret_board import FRET_BOUNDS, NUM_STRINGS, Fretboard
+from chordar import config
+from chordar.config import NUM_STRINGS
+from chordar.geometry import FRET_BOUNDS, Fretboard, string_u
 
 W, H = 1280, 720
-ASSUMED = dict(w0=mfb.QUAD_NUT_WIDTH_MM, w12=mfb.QUAD_FRET12_WIDTH_MM, L=mfb.NECK_LENGTH_MM,
-               h=mfb.FINGER_HEIGHT_MM, hfov=mfb.CAMERA_HFOV_DEG)
+ASSUMED = dict(w0=config.QUAD_NUT_WIDTH_MM, w12=config.QUAD_FRET12_WIDTH_MM, L=config.NECK_LENGTH_MM,
+               h=config.FINGER_HEIGHT_MM, hfov=config.CAMERA_HFOV_DEG)
 FRETS_TESTED = range(1, 5)
 CONDITIONS = ("off", "pose A", "pose B")
 
@@ -60,7 +61,7 @@ def project(points, R, t, K):
 
 
 def fingertip_3d(string_idx, fret, true):
-    u = mfb.string_u(string_idx)
+    u = string_u(string_idx)
     t = (FRET_BOUNDS[fret - 1] + FRET_BOUNDS[fret]) / 2
     width = true["w0"] + (true["w12"] - true["w0"]) * t
     return np.array([t * true["L"], (u - 0.5) * width, -true["h"]])
@@ -153,7 +154,7 @@ def main():
         check(f"widths +18%, across {a}: pose A both >= 95%", r["pose A"][2] >= 95)
 
     print("\n== Wrong quad proportions at 30 deg (informational, no pass/fail) ==")
-    print("The tilt estimate relies on the quad width and length set in map_fret_board.py: measure them.")
+    print("The tilt estimate relies on the quad width and length set in chordar/config.py: measure them.")
     for label, true in (("widths +9%", dict(w0=ASSUMED["w0"] * 1.09, w12=ASSUMED["w12"] * 1.09)),
                         ("widths +18%", wide),
                         ("length -8%", dict(L=ASSUMED["L"] * 0.92)),
