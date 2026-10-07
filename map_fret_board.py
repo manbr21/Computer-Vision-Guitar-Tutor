@@ -29,6 +29,38 @@ string_labels = ["E", "A", "D", "G", "B", "E"]
 NUM_STRINGS = 6
 NUM_FRETS = 12
 
+# Where the marker corners sit across the neck. Layout and model dimensions must match the real mounting:
+#   "outer_strings": each corner touches the outer string (low E / high e); the red outline is drawn half a
+#                    string gap outside. Distances between corners are ~44 mm (nut) and ~50 mm (fret 12).
+#   "neck_edges":    each corner touches the edge of the fretboard; strings are inset. ~52 mm and ~60 mm.
+MARKER_PLACEMENT = "outer_strings"
+
+# Position of the outer strings across the quad (0 = ID0 side, 1 = ID1 side).
+STRING_U_RANGE = (0.0, 1.0) if MARKER_PLACEMENT == "outer_strings" else (1 / 12, 11 / 12)
+
+# Geometry and camera used to estimate where the camera is relative to the fretboard (tilt readout and
+# fingertip parallax correction). The QUAD_* and NECK_LENGTH numbers matter: a >10% error in their
+# proportions skews the estimated tilt and the correction. Measure them on the guitar with a ruler.
+QUAD_NUT_WIDTH_MM = 44.0 if MARKER_PLACEMENT == "outer_strings" else 52.0     # corner to corner at the nut
+QUAD_FRET12_WIDTH_MM = 50.0 if MARKER_PLACEMENT == "outer_strings" else 60.0  # corner to corner at fret 12
+NECK_LENGTH_MM = 325.0        # nut line -> fret 12 line, between the corners (half of a 650 mm scale)
+FINGER_HEIGHT_MM = 10.0       # fingertip height above the fretboard surface when pressing
+CAMERA_HFOV_DEG = 65.0        # horizontal field of view of the webcam (laptop webcams: ~60-78)
+MAX_PARALLAX_MM = 25.0        # ignore corrections larger than this (degenerate pose)
+
+
+def string_u(string_idx):
+    """Position across the quad (u) of a string; string_idx 0 = low E."""
+    lo, hi = STRING_U_RANGE
+    return lo + string_idx * (hi - lo) / (NUM_STRINGS - 1)
+
+
+def outline_u_range():
+    """(u_min, u_max) of the neck outline: the outer strings plus half a string gap on each side."""
+    lo, hi = STRING_U_RANGE
+    half_gap = (hi - lo) / (NUM_STRINGS - 1) / 2
+    return lo - half_gap, hi + half_gap
+
 
 def _fret_bounds():
     """Position of each fret wire along the neck as a fraction of nut->fret 12 (0.0 .. ~1.0)."""
@@ -53,10 +85,40 @@ class Fretboard:
     A homography was tried here and rejected: a guitar neck is tapered (wider at
     fret 12), and a homography reads that taper as perspective, flattening the fret
     spacing so the drawn frets drift away from the real ones.
+
+    With image_size given, the camera pose relative to the fretboard plane is also
+    estimated (planar PnP) so fingertips can be shifted across the neck to the board
+    point under them, which removes the parallax caused by their height above the board.
     """
 
-    def __init__(self, TL, TR, BR, BL):
+    def __init__(self, TL, TR, BR, BL, image_size=None, pose_variant=0):
         self._TL, self._TR, self._BR, self._BL = (np.array(p, dtype=np.float64) for p in (TL, TR, BR, BL))
+        self._pose = self._estimate_pose(image_size, pose_variant) if image_size is not None else None
+
+    def _estimate_pose(self, image_size, pose_variant):
+        """
+        Camera pose from the 4 neck corners. A planar view has two near-equivalent
+        solutions (tilted one way or the other); pose_variant 0 takes the lower
+        reprojection error, 1 the alternative.
+        """
+        w, h = image_size
+        f = (w / 2) / np.tan(np.radians(CAMERA_HFOV_DEG) / 2)
+        K = np.array([[f, 0, w / 2], [0, f, h / 2], [0, 0, 1]])
+        half_nut, half_12 = QUAD_NUT_WIDTH_MM / 2, QUAD_FRET12_WIDTH_MM / 2
+        # X along the neck (nut -> fret 12), Y across (TL side -> TR side), Z normal to the fretboard
+        model = np.float64([[0, -half_nut, 0], [0, half_nut, 0],
+                            [NECK_LENGTH_MM, half_12, 0], [NECK_LENGTH_MM, -half_12, 0]])
+        image = np.float64([self._TL, self._TR, self._BR, self._BL])
+        try:
+            count, rvecs, tvecs, errors = cv2.solvePnPGeneric(model, image, K, None, flags=cv2.SOLVEPNP_IPPE)
+        except cv2.error:
+            return None
+        if not count:
+            return None
+        order = np.argsort(np.asarray(errors).ravel())
+        pick = order[min(pose_variant, len(order) - 1)]
+        R, _ = cv2.Rodrigues(rvecs[pick])
+        return {"K_inv": np.linalg.inv(K), "R": R, "cam": -R.T @ tvecs[pick].reshape(3)}
 
     def _point(self, u, t):
         nut = self._TL + u * (self._TR - self._TL)
@@ -84,25 +146,95 @@ class Fretboard:
     def target(self, string_idx, fret):
         """Pixel position to press: middle of the fret space on the string's lane (string_idx 0 = low E)."""
         fret = min(max(fret, 1), NUM_FRETS)
-        u = (string_idx + 0.5) / NUM_STRINGS
+        u = string_u(string_idx)
         t = (FRET_BOUNDS[fret - 1] + FRET_BOUNDS[fret]) / 2
         return self.to_image(u, t)
 
-    def locate(self, x, y):
-        """(string_idx, fret) under a pixel, or None. Any point between the two wires of a fret counts as that fret."""
+    def _parallax_across_mm(self, x, y):
+        """
+        Distance in mm, across the neck, between the board point under pixel (x, y) and the board
+        point right under a fingertip seen there FINGER_HEIGHT_MM above the board: the pixel's ray
+        hits the board farther away than the fingertip really is. None without a pose or with a
+        degenerate ray.
+        """
+        if self._pose is None:
+            return None
+        cam = self._pose["cam"]
+        ray = self._pose["R"].T @ (self._pose["K_inv"] @ np.array([x, y, 1.0]))
+        if abs(ray[2]) < 1e-9:
+            return None
+        s_board = -cam[2] / ray[2]
+        s_finger = (-FINGER_HEIGHT_MM - cam[2]) / ray[2]
+        if s_board <= 0 or s_finger <= 0:
+            return None
+        shift = (s_finger - s_board) * ray[:2]
+        if np.hypot(shift[0], shift[1]) > MAX_PARALLAX_MM:
+            return None
+        return float(shift[1])
+
+    def to_neck_corrected(self, x, y, parallax=True):
+        """
+        to_neck for a fingertip. With parallax=True the string coordinate is shifted to the board point
+        under the fingertip. Only the across-neck shift is applied: the pose comes from assumed neck
+        proportions, and a wrong proportion shows up as a fake tilt along the neck, which pushed fingers
+        across fret wires. The fret coordinate stays anchored to the marker grid that is drawn.
+        """
         u, t = self.to_neck(x, y)
-        if not (0 <= u < 1 and 0 <= t < FRET_BOUNDS[-1]):
+        if parallax:
+            shift = self._parallax_across_mm(x, y)
+            if shift is not None:
+                u += shift / (QUAD_NUT_WIDTH_MM + (QUAD_FRET12_WIDTH_MM - QUAD_NUT_WIDTH_MM) * t)
+        return u, t
+
+    def contact_pixel(self, x, y):
+        """Pixel where the board point under a fingertip appears in the image (on the drawn grid), or None."""
+        if self._parallax_across_mm(x, y) is None:
+            return None
+        return self.to_image(*self.to_neck_corrected(x, y))
+
+    def locate(self, x, y, parallax=True):
+        """
+        (string_idx, fret) under a pixel, or None. The string is the nearest one (each owns a lane
+        half a string gap to either side); any point between the two wires of a fret counts as that fret.
+        """
+        u, t = self.to_neck_corrected(x, y, parallax)
+        lo, hi = STRING_U_RANGE
+        position = (u - lo) / (hi - lo) * (NUM_STRINGS - 1)  # 0 at the first string, 5 at the last
+        if not (-0.5 <= position < NUM_STRINGS - 0.5 and 0 <= t < FRET_BOUNDS[-1]):
             return None
         fret = int(np.searchsorted(FRET_BOUNDS, t, side='right'))
-        return int(u * NUM_STRINGS), fret
+        return int(np.floor(position + 0.5)), fret
+
+    def camera_angles(self):
+        """
+        (total, across, along) in degrees: how far the camera is from looking straight down the
+        fretboard normal, split into tilt across the neck and along it. Magnitudes only - a single
+        planar view can't tell the tilt direction reliably. None without a pose.
+        """
+        if self._pose is None:
+            return None
+        to_camera = self._pose["cam"] - np.array([NECK_LENGTH_MM / 2, 0.0, 0.0])
+        depth = abs(to_camera[2])
+        total = np.degrees(np.arccos(depth / np.linalg.norm(to_camera)))
+        across = np.degrees(np.arctan2(abs(to_camera[1]), depth))
+        along = np.degrees(np.arctan2(abs(to_camera[0]), depth))
+        return float(total), float(across), float(along)
 
     def width_px(self):
-        """Neck width in pixels at mid-neck."""
+        """Quad width in pixels at mid-neck (between the marker corners)."""
         x0, y0 = self.to_image(0, 0.5)
         x1, y1 = self.to_image(1, 0.5)
         return float(np.hypot(x1 - x0, y1 - y0))
 
-def map_guitar(frame):
+    def string_gap_px(self):
+        """Distance in pixels between adjacent strings at mid-neck."""
+        lo, hi = STRING_U_RANGE
+        return self.width_px() * (hi - lo) / (NUM_STRINGS - 1)
+
+    def outline_u(self):
+        return outline_u_range()
+
+def map_guitar(frame, pose_variant=0):
     """Process a frame, detect ArUco fretboard, draw frets + strings,
     return annotated display + Fretboard (None until all 4 markers are known)."""
     global _debug_frame_count
@@ -151,24 +283,27 @@ def map_guitar(frame):
     neck = None
 
     if len(quad_points) == 4:
-        pts = np.array([quad_points["TL"], quad_points["TR"],
-                        quad_points["BR"], quad_points["BL"]], dtype=np.int32)
-        cv2.polylines(display, [pts], True, (0,0,255), 3)
-        for pt in pts:
-            cv2.circle(display, tuple(int(v) for v in pt), 5, (255, 0, 255), -1)
+        neck = Fretboard(quad_points["TL"], quad_points["TR"], quad_points["BR"], quad_points["BL"],
+                         image_size=(w, h), pose_variant=pose_variant)
 
-        neck = Fretboard(quad_points["TL"], quad_points["TR"], quad_points["BR"], quad_points["BL"])
+        # Red outline of the neck: the marker corners are the outer strings, so it sits a small
+        # fixed distance outside them. The magenta dots mark the marker corners actually in use.
+        u_min, u_max = neck.outline_u()
+        outline = np.array([neck.to_image(u_min, 0), neck.to_image(u_max, 0),
+                            neck.to_image(u_max, 1), neck.to_image(u_min, 1)], dtype=np.int32)
+        cv2.polylines(display, [outline], True, (0, 0, 255), 3)
+        for corner in ("TL", "TR", "BR", "BL"):
+            cv2.circle(display, tuple(int(v) for v in quad_points[corner]), 5, (255, 0, 255), -1)
 
         for n in range(1, NUM_FRETS + 1):
-            wire_left = neck.to_image(0, FRET_BOUNDS[n])
-            wire_right = neck.to_image(1, FRET_BOUNDS[n])
+            wire_left = neck.to_image(u_min, FRET_BOUNDS[n])
+            wire_right = neck.to_image(u_max, FRET_BOUNDS[n])
             cv2.line(display, wire_left, wire_right, (0, 255, 255), 2)
             cv2.putText(display, f"{n}", (wire_left[0] + 5, wire_left[1] - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
-        # Strings sit in the middle of 6 equal lanes, not on the neck edges.
         for s in range(NUM_STRINGS):
-            u = (s + 0.5) / NUM_STRINGS
+            u = string_u(s)
             cv2.line(display, neck.to_image(u, 0), neck.to_image(u, 1), (155, 255, 0), 2)
 
     return display, neck
