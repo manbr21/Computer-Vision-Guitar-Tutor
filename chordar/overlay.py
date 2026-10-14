@@ -9,6 +9,8 @@ from chordar.geometry import FRET_BOUNDS, outline_u_range, string_u
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 PANEL_FILL, PANEL_BORDER = (40, 40, 40), (0, 255, 0)
 DIAGRAM_FRETS = 4  # frets shown in the chord diagram
+CAPO_OVERHANG = 0.06  # how far the capo bar sticks out past the neck outline, in quad widths
+ORANGE = (0, 140, 255)
 
 
 def put_text_bg(img, text, org, scale, color, thickness=2, pad=6):
@@ -41,9 +43,23 @@ def draw_neck(display, neck):
         cv2.line(display, neck.to_image(string_u(s), 0), neck.to_image(string_u(s), 1), (155, 255, 0), 2)
 
 
-def draw_chord_targets(display, neck, chord):
-    """Yellow dots, numbered with the finger, where each fretted note of the chord goes."""
-    for string_idx, fret, finger in fretted_notes(chord):
+def draw_capo(display, neck, capo):
+    """A capo bar across all the strings, just behind the wire of fret `capo`."""
+    u_min, u_max = outline_u_range()
+    u_left, u_right = u_min - CAPO_OVERHANG, u_max + CAPO_OVERHANG
+    gap = FRET_BOUNDS[capo] - FRET_BOUNDS[capo - 1]
+    t_nut_side, t_fret_side = FRET_BOUNDS[capo] - 0.4 * gap, FRET_BOUNDS[capo] - 0.1 * gap
+    bar = np.array([neck.to_image(u_left, t_nut_side), neck.to_image(u_right, t_nut_side),
+                    neck.to_image(u_right, t_fret_side), neck.to_image(u_left, t_fret_side)], dtype=np.int32)
+    shade = display.copy()
+    cv2.fillPoly(shade, [bar], ORANGE)
+    cv2.addWeighted(shade, 0.7, display, 0.3, 0, dst=display)
+    cv2.polylines(display, [bar], True, (255, 255, 255), 2)
+
+
+def draw_chord_targets(display, neck, notes):
+    """Yellow dots, numbered with the finger, where each fretted note (string_idx, fret, finger) goes."""
+    for string_idx, fret, finger in notes:
         x, y = neck.target(string_idx, fret)
         cv2.circle(display, (x, y), 8, (0, 255, 255), -1)
         cv2.circle(display, (x, y), 8, (255, 255, 255), 2)
@@ -70,12 +86,18 @@ def draw_fingertips(display, neck, fingertips, parallax):
 
 # --- chord diagram ----------------------------------------------------------------------------------------
 
-def draw_chord_diagram(frame, x, y, width, height, chord):
-    """Chord chart in a panel: strings are rows (low E on top, like the neck on screen), frets are columns."""
+def draw_chord_diagram(frame, x, y, width, height, chord, capo=0):
+    """
+    Chord chart in a panel: strings are rows (low E on top, like the neck on screen), frets are columns. With
+    a capo the thick line is the capo, the columns are numbered with the real frets and the open strings are
+    the ones the capo plays.
+    """
     info = CHORD_LIBRARY[chord]
     cv2.rectangle(frame, (x, y), (x + width, y + height), PANEL_FILL, -1)
     cv2.rectangle(frame, (x, y), (x + width, y + height), PANEL_BORDER, 2)
     cv2.putText(frame, info["name"], (x + 10, y + 25), FONT, 0.7, (255, 255, 255), 2)
+    if capo:
+        cv2.putText(frame, f"capo {capo}", (x + width - 70, y + 25), FONT, 0.5, ORANGE, 1)
 
     left, top = x + 48, y + 58
     fret_w = (width - 60) // DIAGRAM_FRETS
@@ -88,7 +110,7 @@ def draw_chord_diagram(frame, x, y, width, height, chord):
     for n in range(DIAGRAM_FRETS + 1):  # the nut (n = 0) is thicker
         cv2.line(frame, (left + n * fret_w, top), (left + n * fret_w, bottom), (200, 200, 200), 3 if n == 0 else 1)
     for n in range(1, DIAGRAM_FRETS + 1):
-        cv2.putText(frame, str(n), (left + int((n - 0.5) * fret_w) - 4, top - 14), FONT, 0.45, (255, 255, 255), 1)
+        cv2.putText(frame, str(capo + n), (left + int((n - 0.5) * fret_w) - 4, top - 14), FONT, 0.45, (255, 255, 255), 1)
 
     for s, (fret, finger) in enumerate(zip(info["frets"], info["fingers"])):
         row_y = top + s * string_gap
@@ -104,10 +126,12 @@ def draw_chord_diagram(frame, x, y, width, height, chord):
                 cv2.putText(frame, str(finger), (cx - 4, row_y + 4), FONT, 0.4, (0, 0, 0), 1)
 
 
-def draw_chord_instructions(frame, x, y, width, chord):
-    """Where each finger goes, in its own dark box right-aligned to x + width."""
+def draw_chord_instructions(frame, x, y, width, chord, capo=0):
+    """Where each finger goes (real frets, with the capo), in its own dark box right-aligned to x + width."""
     lines = [f"Finger {finger} on string {NUM_STRINGS - s} ({STRING_NAMES[s]}) fret {fret}"
-             for s, fret, finger in fretted_notes(chord)] or ["Open strings or muted"]
+             for s, fret, finger in fretted_notes(chord, capo)] or ["Open strings or muted"]
+    if capo:
+        lines.insert(0, f"Capo on fret {capo}")
 
     scale, thickness, line_h, pad = 0.5, 1, 22, 10
     box_w = max(width, max(cv2.getTextSize(line, FONT, scale, thickness)[0][0] for line in lines) + 2 * pad)

@@ -5,11 +5,11 @@ import time
 import cv2
 
 from chordar.calibration import run_calibration
-from chordar.chords import fretted_notes
+from chordar.chords import MAX_CAPO, fretted_notes
 from chordar.hands import FingertipTracker
 from chordar.markers import MarkerTracker
-from chordar.overlay import (draw_chord_diagram, draw_chord_instructions, draw_chord_targets, draw_fingertips,
-                             draw_neck, put_text_bg)
+from chordar.overlay import (draw_capo, draw_chord_diagram, draw_chord_instructions, draw_chord_targets,
+                             draw_fingertips, draw_neck, put_text_bg)
 from chordar.placement import PlacementMonitor
 from chordar.scoring import chord_accuracy
 
@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
-KEY_HELP = "Press 1-8 to change chords, P parallax fix, X swap pose, C recalibrate, ESC to exit"
+KEY_HELP = "Press 1-8 to change chords, [ ] capo, P parallax fix, X swap pose, C recalibrate, ESC to exit"
 WHITE, GREEN, ORANGE, RED, GRAY = (255, 255, 255), (0, 255, 0), (0, 165, 255), (0, 0, 255), (200, 200, 200)
 
 
@@ -28,6 +28,7 @@ class ChordARApp:
         self.hands = FingertipTracker()
         self.monitor = PlacementMonitor()
         self.chord = "C"
+        self.capo = 0            # capo fret: ] raises it, [ lowers it, 0 removes it
         self.parallax_on = True  # P toggles the fingertip parallax correction
         self.pose_variant = 0    # X swaps between the two possible camera-pose solutions
 
@@ -57,10 +58,13 @@ class ChordARApp:
 
         score = None
         if neck is not None:
+            notes = fretted_notes(self.chord, self.capo)
             draw_neck(display, neck)
-            draw_chord_targets(display, neck, self.chord)
+            if self.capo:
+                draw_capo(display, neck, self.capo)
+            draw_chord_targets(display, neck, notes)
             draw_fingertips(display, neck, fingertips, self.parallax_on)
-            score = chord_accuracy(fretted_notes(self.chord), fingertips, neck, self.parallax_on)
+            score = chord_accuracy(notes, fingertips, neck, self.parallax_on)
 
         self._draw_status(display, neck, self.monitor.update(neck, size, now))
         self._draw_score(display, score)
@@ -76,6 +80,12 @@ class ChordARApp:
             return False
         if key in CHORD_KEYS:
             self.chord = CHORD_KEYS[key]
+        elif key == ord("]"):
+            self.capo = min(self.capo + 1, MAX_CAPO)
+        elif key == ord("["):
+            self.capo = max(self.capo - 1, 0)
+        elif key == ord("0"):
+            self.capo = 0
         elif key == ord("p"):
             self.parallax_on = not self.parallax_on
         elif key == ord("x"):
@@ -98,7 +108,8 @@ class ChordARApp:
             put_text_bg(display, f"{drift_hint} - press C to recalibrate", (20, 150), 0.55, ORANGE, thickness=1)
 
     def _draw_score(self, display, score):
-        put_text_bg(display, f"Current Chord: {self.chord}", (20, 30), 0.7, WHITE)
+        title = f"Current Chord: {self.chord}" + (f" | Capo {self.capo}" if self.capo else "")
+        put_text_bg(display, title, (20, 30), 0.7, WHITE)
         if score is None:  # no neck, or a chord with no fretted notes
             put_text_bg(display, "Accuracy: N/A", (20, 60), 0.8, GRAY)
         else:
@@ -106,5 +117,5 @@ class ChordARApp:
 
     def _draw_chord_panel(self, display):
         x, y, width, height = display.shape[1] - 220, 20, 200, 190
-        draw_chord_diagram(display, x, y, width, height, self.chord)
-        draw_chord_instructions(display, x, y + height + 10, width, self.chord)
+        draw_chord_diagram(display, x, y, width, height, self.chord, self.capo)
+        draw_chord_instructions(display, x, y + height + 10, width, self.chord, self.capo)

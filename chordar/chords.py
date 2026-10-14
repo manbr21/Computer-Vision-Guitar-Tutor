@@ -15,9 +15,16 @@ CHORD_LIBRARY = {
 }
 
 
-def fretted_notes(chord):
-    """[(string_idx, fret, finger)] for the notes of a chord that a finger presses."""
+MAX_CAPO = 7  # highest capo fret offered; with the highest chord note (fret 3) it stays on the 12-fret neck
+
+
+def fretted_notes(chord, capo=0):
+    """
+    [(string_idx, fret, finger)] for the notes of a chord that a finger presses. With a capo on fret N the
+    whole shape moves up N frets: the capo plays the open strings, so they need no finger, and muted
+    strings stay muted.
+    """
     info = CHORD_LIBRARY[chord]
-    return [(string_idx, fret, finger)
+    return [(string_idx, fret + capo, finger)
             for string_idx, (fret, finger) in enumerate(zip(info["frets"], info["fingers"]))
             if fret is not None and fret > 0 and finger]
