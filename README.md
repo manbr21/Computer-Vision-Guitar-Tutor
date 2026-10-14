@@ -17,6 +17,8 @@ It is a fork of [Chordially / Computer-Vision-Guitar-Tutor](https://github.com/n
   level and camera angle are checked with a hint for each. During play, a warning appears if the guitar drifts.
 - **Scoring:** percentage of the chord's fretted notes covered, requiring the right string *and* fret.
 - **Eight chords** (A, Am, C, D, Dm, E, Em, G) with a chord chart and finger instructions on screen.
+- **Virtual capo:** tell the program the fret of a physical capo and the chord shape moves up that many frets
+  (the capo bar is drawn on the neck, the open strings need no finger and the score expects the shifted frets).
 
 ## How it works
 
@@ -63,6 +65,7 @@ ESC quits). Then the lesson:
 | Key | Action |
 |-----|--------|
 | `1`-`8` | choose the chord (A, Am, C, D, Dm, E, Em, G) |
+| `]` / `[` | move the virtual capo up / down a fret (up to fret 7); `0` removes it |
 | `P` | toggle the parallax correction (compare the score with and without it) |
 | `X` | swap between the two camera-pose solutions |
 | `C` | recalibrate (ESC there goes back to playing) |
@@ -96,6 +99,7 @@ Run from the repository root; each one exits with status 1 if a check fails.
 python validation/synthetic_parallax_test.py     # virtual camera: tilt, off-center neck, wrong FOV/dimensions
 python validation/calibration_alignment_test.py  # placement metrics, hints and the drift monitor
 python validation/app_smoke_test.py              # ArUco markers drawn on a synthetic frame, end to end
+python validation/capo_test.py                   # virtual capo: shifted notes, score, keys and drawing
 ```
 
 In the simulation, without the parallax correction the right string drops to ~70% at 20 deg of camera tilt and ~5%
