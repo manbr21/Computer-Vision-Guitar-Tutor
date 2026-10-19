@@ -111,6 +111,8 @@ at 30 deg; with it, it stays at ~100%.
 - A dark patch is occasionally read as a marker ID 0-3, briefly flickering a phantom neck (a filter is planned).
 - The fret coordinate follows the drawn grid, which does not model perspective: with strong tilt along the neck
   or a neck far from the image center the frets drift (the calibration keeps play within the safe range).
+- Tracking two hands (`MAX_HANDS = 2` in `config.py`, needed to pick the fretting hand) costs ~14 ms more per frame
+  than one; set it to 1 for speed if only the fretting hand is in view.
 - When the pinky's phalanx shows more than its tip, MediaPipe may take the phalanx for the fingertip.
 - The target neck assumes the nut on the left of the (mirrored) screen; left-handed layouts are not supported.
 

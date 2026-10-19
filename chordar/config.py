@@ -33,6 +33,7 @@ QUAD_NUT_WIDTH_MM = 44.0 if _OUTER else 52.0     # corner to corner at the nut
 QUAD_FRET12_WIDTH_MM = 50.0 if _OUTER else 60.0  # corner to corner at fret 12
 NECK_LENGTH_MM = 325.0                           # nut line -> fret 12 line (half of a 650 mm scale)
 
+MAX_HANDS = 2            # hands MediaPipe may track; 2 lets the program pick the fretting hand but costs ~14 ms per frame
 FINGER_HEIGHT_MM = 10.0   # fingertip height above the fretboard surface when pressing
 CAMERA_HFOV_DEG = 65.0    # horizontal field of view of the webcam (laptop webcams: ~60-78)
 MAX_PARALLAX_MM = 25.0    # ignore corrections larger than this (degenerate pose)

@@ -6,6 +6,8 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
+from chordar import config
+
 FINGER_TIPS = {"index": 8, "middle": 12, "ring": 16, "pinky": 20}  # MediaPipe landmark ids
 SMOOTH_FRAMES = 5
 JUMP_PX = 200  # a position farther than this from the smoothed one restarts the smoothing
@@ -21,7 +23,7 @@ class FingertipTracker:
     def __init__(self):
         self._hands = mp.solutions.hands.Hands(
             static_image_mode=False,
-            max_num_hands=2,  # both hands may be in frame; the one over the neck is picked in track()
+            max_num_hands=config.MAX_HANDS,  # with 2, the hand over the neck is picked in track()
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5,
         )
