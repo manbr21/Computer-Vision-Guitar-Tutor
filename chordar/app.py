@@ -17,13 +17,16 @@ log = logging.getLogger(__name__)
 
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
-KEY_HELP = "Press 1-8 to change chords, [ ] capo, P parallax fix, X swap pose, C recalibrate, ESC to exit"
+KEY_HELP = "1-8 chord, [ ] capo, A auto-advance, P parallax, X pose, C recalibrate, ESC exit"
+STRUM_BANNER_S = 2.0  # how long the result of a strum stays on screen
 WHITE, GREEN, ORANGE, RED, GRAY = (255, 255, 255), (0, 255, 0), (0, 165, 255), (0, 0, 255), (200, 200, 200)
 
 
 class ChordARApp:
-    def __init__(self, capture):
+    def __init__(self, capture, audio=None):
+        """audio: a StrumListener (or anything with start/poll/level/stop), or None to play without sound."""
         self.capture = capture
+        self.audio = audio
         self.markers = MarkerTracker()
         self.hands = FingertipTracker()
         self.monitor = PlacementMonitor()
@@ -31,9 +34,13 @@ class ChordARApp:
         self.capo = 0            # capo fret: ] raises it, [ lowers it, 0 removes it
         self.parallax_on = True  # P toggles the fingertip parallax correction
         self.pose_variant = 0    # X swaps between the two possible camera-pose solutions
+        self.auto_advance = False  # A: a correct strum moves on to the next chord
+        self.last_strum = None   # (time, chord, capo, score or None) of the latest strum
 
     def run(self):
         """Calibrates, then shows the video with the overlay until ESC. Releases the camera at the end."""
+        if self.audio is not None:
+            self.audio.start()
         try:
             if not run_calibration(self.capture, self.markers, self.hands, WINDOW):
                 return
@@ -46,6 +53,8 @@ class ChordARApp:
                 if not self.handle_key(cv2.waitKey(1) & 0xFF):
                     break
         finally:
+            if self.audio is not None:
+                self.audio.stop()
             self.capture.release()
             self.hands.close()
             cv2.destroyAllWindows()
@@ -66,8 +75,10 @@ class ChordARApp:
             draw_fingertips(display, neck, fingertips, self.parallax_on)
             score = chord_accuracy(notes, fingertips, neck, self.parallax_on)
 
+        self._handle_strums(score, now)
         self._draw_status(display, neck, self.monitor.update(neck, size, now))
         self._draw_score(display, score)
+        self._draw_strum(display, now)
         self._draw_chord_panel(display)
         put_text_bg(display, KEY_HELP, (20, size[1] - 20), 0.5, WHITE, thickness=1)
         fps = 1.0 / (time.time() - now) if time.time() != now else 0.0
@@ -86,6 +97,8 @@ class ChordARApp:
             self.capo = max(self.capo - 1, 0)
         elif key == ord("0"):
             self.capo = 0
+        elif key == ord("a"):
+            self.auto_advance = not self.auto_advance
         elif key == ord("p"):
             self.parallax_on = not self.parallax_on
         elif key == ord("x"):
@@ -94,6 +107,32 @@ class ChordARApp:
             run_calibration(self.capture, self.markers, self.hands, WINDOW)  # ESC there comes back to playing
             self.monitor.reset()
         return True
+
+    def _handle_strums(self, score, now):
+        """A strum judges the chord at that moment; with auto-advance, a perfect one moves to the next chord."""
+        if self.audio is None or not self.audio.poll():
+            return
+        self.last_strum = (now, self.chord, self.capo, score)
+        if self.auto_advance and score == 100:
+            chords = list(CHORD_KEYS.values())
+            self.chord = chords[(chords.index(self.chord) + 1) % len(chords)]
+
+    def _draw_strum(self, display, now):
+        """The result of the latest strum, and a small microphone level bar."""
+        if self.audio is None:
+            return
+        if self.last_strum is not None and now - self.last_strum[0] < STRUM_BANNER_S:
+            _, chord, capo, score = self.last_strum
+            name = chord + (f" capo {capo}" if capo else "")
+            if score is None:
+                put_text_bg(display, f"Strum! {name}: neck not seen", (20, 190), 0.7, GRAY)
+            else:
+                put_text_bg(display, f"Strum! {name}: {score}%" + ("  correct" if score == 100 else ""),
+                            (20, 190), 0.7, GREEN if score == 100 else ORANGE)
+        bar = int(min(self.audio.level / 0.2, 1.0) * 120)  # full bar at an RMS of 0.2
+        cv2.rectangle(display, (20, 205), (140, 215), (60, 60, 60), -1)
+        cv2.rectangle(display, (20, 205), (20 + bar, 215), GREEN, -1)
+        put_text_bg(display, "mic" if self.audio.active else "mic off", (150, 215), 0.45, GRAY, thickness=1, pad=3)
 
     def _draw_status(self, display, neck, drift_hint):
         if neck is None:

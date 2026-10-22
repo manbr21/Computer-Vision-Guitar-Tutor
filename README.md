@@ -19,6 +19,9 @@ It is a fork of [Chordially / Computer-Vision-Guitar-Tutor](https://github.com/n
 - **Eight chords** (A, Am, C, D, Dm, E, Em, G) with a chord chart and finger instructions on screen.
 - **Virtual capo:** tell the program the fret of a physical capo and the chord shape moves up that many frets
   (the capo bar is drawn on the neck, the open strings need no finger and the score expects the shifted frets).
+- **Strum detection:** the microphone listens for the sharp rise in loudness of a strum. Each strum judges the chord at
+  that moment ("Strum! C: 100%"), and with auto-advance (`A`) a perfect strum moves on to the next chord.
+  A small bar shows the microphone level. This detects *that* you strummed, not *which* chord sounded.
 
 ## How it works
 
@@ -57,6 +60,7 @@ MediaPipe is pinned below 0.10.30: later releases removed the `mp.solutions` API
 ```
 python -m chordar             # or: python main.py
 python -m chordar --camera 1 --debug
+python -m chordar --no-audio   # without the microphone
 ```
 
 First the calibration screen: move the guitar onto the drawn neck until every check is OK (ENTER starts anyway,
@@ -66,6 +70,7 @@ ESC quits). Then the lesson:
 |-----|--------|
 | `1`-`8` | choose the chord (A, Am, C, D, Dm, E, Em, G) |
 | `]` / `[` | move the virtual capo up / down a fret (up to fret 7); `0` removes it |
+| `A` | auto-advance: a perfect strum moves to the next chord |
 | `P` | toggle the parallax correction (compare the score with and without it) |
 | `X` | swap between the two camera-pose solutions |
 | `C` | recalibrate (ESC there goes back to playing) |
@@ -80,6 +85,7 @@ chordar/
   pose.py         camera pose from the marker corners, parallax shift, camera angles
   markers.py      ArUco detection and smoothing
   hands.py        fingertip tracking (MediaPipe Hands)
+  audio.py        strum detection from the microphone
   chords.py       chord library
   scoring.py      chord accuracy
   placement.py    neck-placement metrics and checks, drift monitor
@@ -100,6 +106,7 @@ python validation/synthetic_parallax_test.py     # virtual camera: tilt, off-cen
 python validation/calibration_alignment_test.py  # placement metrics, hints and the drift monitor
 python validation/app_smoke_test.py              # ArUco markers drawn on a synthetic frame, end to end
 python validation/capo_test.py                   # virtual capo: shifted notes, score, keys and drawing
+python validation/audio_test.py                  # strum detector on synthetic sound, and its use by the app
 ```
 
 In the simulation, without the parallax correction the right string drops to ~70% at 20 deg of camera tilt and ~5%

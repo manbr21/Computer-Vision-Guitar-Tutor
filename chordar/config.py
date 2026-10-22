@@ -37,3 +37,9 @@ MAX_HANDS = 2            # hands MediaPipe may track; 2 lets the program pick th
 FINGER_HEIGHT_MM = 10.0   # fingertip height above the fretboard surface when pressing
 CAMERA_HFOV_DEG = 65.0    # horizontal field of view of the webcam (laptop webcams: ~60-78)
 MAX_PARALLAX_MM = 25.0    # ignore corrections larger than this (degenerate pose)
+
+# Strum detection from the microphone (chordar/audio.py)
+AUDIO_ENABLED = True          # --no-audio on the command line turns it off for one run
+STRUM_MIN_RMS = 0.02          # a strum must be at least this loud (full scale = 1.0)
+STRUM_RATIO = 4.0             # ... and this many times louder than the running background level
+STRUM_REFRACTORY_S = 0.7      # ignore new strums for this long after one (the chord is still ringing)
