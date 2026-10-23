@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
-KEY_HELP = "1-8 chord, [ ] capo, A auto-advance, P parallax, X pose, C recalibrate, ESC exit"
+KEY_HELP = ("1-8 chord, [ ] capo, A auto-advance on strum,", "P parallax, X pose, C recalibrate, ESC exit")
 STRUM_BANNER_S = 2.0  # how long the result of a strum stays on screen
 WHITE, GREEN, ORANGE, RED, GRAY = (255, 255, 255), (0, 255, 0), (0, 165, 255), (0, 0, 255), (200, 200, 200)
 
@@ -80,7 +80,8 @@ class ChordARApp:
         self._draw_score(display, score)
         self._draw_strum(display, now)
         self._draw_chord_panel(display)
-        put_text_bg(display, KEY_HELP, (20, size[1] - 20), 0.5, WHITE, thickness=1)
+        for i, line in enumerate(reversed(KEY_HELP)):  # two lines so it fits narrow webcam frames
+            put_text_bg(display, line, (20, size[1] - 20 - 26 * i), 0.5, WHITE, thickness=1)
         fps = 1.0 / (time.time() - now) if time.time() != now else 0.0
         put_text_bg(display, f"FPS: {fps:.1f}", (size[0] - 130, size[1] - 20), 0.7, GREEN)
         return display
@@ -129,6 +130,8 @@ class ChordARApp:
             else:
                 put_text_bg(display, f"Strum! {name}: {score}%" + ("  correct" if score == 100 else ""),
                             (20, 190), 0.7, GREEN if score == 100 else ORANGE)
+        if self.auto_advance:
+            put_text_bg(display, "Auto-advance ON: strum a perfect chord to move on", (20, 245), 0.5, GREEN, thickness=1)
         bar = int(min(self.audio.level / 0.2, 1.0) * 120)  # full bar at an RMS of 0.2
         cv2.rectangle(display, (20, 205), (140, 215), (60, 60, 60), -1)
         cv2.rectangle(display, (20, 205), (20 + bar, 215), GREEN, -1)
@@ -148,6 +151,8 @@ class ChordARApp:
 
     def _draw_score(self, display, score):
         title = f"Current Chord: {self.chord}" + (f" | Capo {self.capo}" if self.capo else "")
+        if self.audio is not None:
+            title += " | AUTO" if self.auto_advance else ""
         put_text_bg(display, title, (20, 30), 0.7, WHITE)
         if score is None:  # no neck, or a chord with no fretted notes
             put_text_bg(display, "Accuracy: N/A", (20, 60), 0.8, GRAY)
