@@ -12,7 +12,7 @@ MAX_TILT_DEG = 40            # camera angle away from the fretboard normal beyon
 # Where the neck should sit in the (mirrored) image: seen by a camera looking straight at it from
 # IDEAL_DISTANCE_MM, centered horizontally and a bit below the middle, nut on the left.
 IDEAL_DISTANCE_MM = 400.0
-IDEAL_CENTER = (0.5, 0.55)
+IDEAL_CENTER = [0.5, 0.6]   # mutable on purpose: set_reference_center() moves it to where the user sits
 SCALE_TOL = 0.15             # allowed relative error of the neck length vs. the target
 OFFSET_TOL_X = 0.07          # allowed horizontal offset, as a fraction of the frame width
 OFFSET_TOL_Y = 0.10          # allowed vertical offset, as a fraction of the frame height
@@ -27,6 +27,18 @@ def pixels_per_mm(image_width):
     """Scale of the target neck: pixels per mm for a camera looking straight at it from IDEAL_DISTANCE_MM."""
     focal = (image_width / 2) / math.tan(math.radians(config.CAMERA_HFOV_DEG) / 2)
     return focal / IDEAL_DISTANCE_MM
+
+
+def neck_center_fraction(neck, image_size):
+    """Middle of the neck in the image, as a fraction of the frame width and height."""
+    width, height = image_size
+    center = (np.array(neck.to_image(0.5, 0.0), dtype=float) + np.array(neck.to_image(0.5, 1.0), dtype=float)) / 2
+    return float(center[0] / width), float(center[1] / height)
+
+
+def set_reference_center(neck, image_size):
+    """Makes the current position of the neck the reference one (the user's natural way of holding the guitar)."""
+    IDEAL_CENTER[:] = neck_center_fraction(neck, image_size)
 
 
 def alignment_metrics(neck, image_size):
@@ -81,6 +93,27 @@ def evaluate(m, tolerance_scale=1.0):
         checks.append(dict(label="Camera angle", ok=m["tilt"] <= max_tilt,
                            detail=f"{m['tilt']:.0f} deg (across {m['across']:.0f}, along {m['along']:.0f})", hint=hint))
     return checks
+
+
+DARK_MEAN, BRIGHT_MEAN = 70, 200   # mean gray level (0-255) of the frame below / above which the picture is poor
+BACKLIT_RATIO = 0.6                # neck region darker than this fraction of the frame mean: light is behind it
+
+
+def lighting_check(frame_mean, neck_mean=None):
+    """
+    Advice on the lighting from the mean gray level of the frame and, if the neck was found, of the neck
+    region. Returns dict(ok, detail, hint). Advisory only: markers and hands usually survive mediocre light,
+    but flicker and exposure changes are worse in the dark or against a window.
+    """
+    detail = f"brightness {frame_mean:.0f}/255"
+    if frame_mean < DARK_MEAN:
+        return dict(ok=False, detail=detail, hint="Too dark: turn on a light that shines on you and the guitar")
+    if frame_mean > BRIGHT_MEAN:
+        return dict(ok=False, detail=detail, hint="Too bright: the picture is washed out, reduce the light on the guitar")
+    if neck_mean is not None and neck_mean < BACKLIT_RATIO * frame_mean:
+        return dict(ok=False, detail=detail + ", neck much darker than the room",
+                    hint="Backlit: put the light in front of you, not behind the guitar or at a window")
+    return dict(ok=True, detail=detail, hint="")
 
 
 def smooth(history, metrics):

@@ -15,8 +15,10 @@ It is a fork of [Chordially / Computer-Vision-Guitar-Tutor](https://github.com/n
   neighbouring string. The camera pose is estimated from the markers and the fingertip is shifted to the board point under it.
 - **Guided calibration:** a target neck is drawn on the video; distance, horizontal and vertical position,
   level and camera angle are checked with a hint for each. During play, a warning appears if the guitar drifts.
-- **Scoring:** percentage of the chord's fretted notes covered, requiring the right string *and* fret.
-- **Eight chords** (A, Am, C, D, Dm, E, Em, G) with a chord chart and finger instructions on screen.
+- **Scoring and coaching:** percentage of the chord's fretted notes covered (right string *and* fret), shown as a ring;
+  notes turn green when covered, and one message says what to fix first ("Finger 2: 1 string up, 1 fret left"),
+  with an arrow from the fingertip to its note.
+- **Eight chords** (A, Am, C, D, Dm, E, Em, G) with a chord chart on screen.
 - **Virtual capo:** tell the program the fret of a physical capo and the chord shape moves up that many frets
   (the capo bar is drawn on the neck, the open strings need no finger and the score expects the shifted frets).
 - **Strum detection:** the microphone listens for the sharp rise in loudness of a strum. Each strum judges the chord at
@@ -63,8 +65,9 @@ python -m chordar --camera 1 --debug
 python -m chordar --no-audio   # without the microphone
 ```
 
-First the calibration screen: move the guitar onto the drawn neck until every check is OK (ENTER starts anyway,
-ESC quits). Then the lesson:
+First the calibration screen: move the guitar onto the drawn neck until every check is OK, or hold it where it is
+comfortable and press ENTER to use that position as the reference (ESC quits). It also advises on the lighting
+(too dark, washed out, backlit). Then the lesson:
 
 | Key | Action |
 |-----|--------|
@@ -72,6 +75,8 @@ ESC quits). Then the lesson:
 | `]` / `[` | move the virtual capo up / down a fret (up to fret 7); `0` removes it |
 | `A` | auto-advance: a perfect strum moves to the next chord |
 | `F` | toggle full screen (starts in full screen; `FULLSCREEN` in `config.py`) |
+| `D` | technical info: pose, parallax, fingertip labels, FPS, microphone level |
+| `H` | list of the keys |
 | `P` | toggle the parallax correction (compare the score with and without it) |
 | `X` | swap between the two camera-pose solutions |
 | `C` | recalibrate (ESC there goes back to playing) |
@@ -87,6 +92,7 @@ chordar/
   markers.py      ArUco detection and smoothing
   hands.py        fingertip tracking (MediaPipe Hands)
   audio.py        strum detection from the microphone
+  coaching.py     which notes are done and the one correction to say
   window.py       full-screen display window, image scaled without stretching
   chords.py       chord library
   scoring.py      chord accuracy
@@ -108,6 +114,8 @@ python validation/synthetic_parallax_test.py     # virtual camera: tilt, off-cen
 python validation/calibration_alignment_test.py  # placement metrics, hints and the drift monitor
 python validation/app_smoke_test.py              # ArUco markers drawn on a synthetic frame, end to end
 python validation/capo_test.py                   # virtual capo: shifted notes, score, keys and drawing
+python validation/coaching_test.py                # finger coaching messages
+python validation/lighting_test.py                # lighting advice in the calibration
 python validation/audio_test.py                  # strum detector on synthetic sound, and its use by the app
 ```
 

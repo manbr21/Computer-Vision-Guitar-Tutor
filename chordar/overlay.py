@@ -2,7 +2,7 @@
 import cv2
 import numpy as np
 
-from chordar.chords import CHORD_LIBRARY, STRING_NAMES, fretted_notes
+from chordar.chords import CHORD_LIBRARY, STRING_NAMES
 from chordar.config import NUM_FRETS, NUM_STRINGS
 from chordar.geometry import FRET_BOUNDS, outline_u_range, string_u
 
@@ -57,22 +57,38 @@ def draw_capo(display, neck, capo):
     cv2.polylines(display, [bar], True, (255, 255, 255), 2)
 
 
-def draw_chord_targets(display, neck, notes):
-    """Yellow dots, numbered with the finger, where each fretted note (string_idx, fret, finger) goes."""
-    for string_idx, fret, finger in notes:
+def draw_chord_targets(display, neck, notes, done=None):
+    """Yellow dots, numbered with the finger, where each fretted note goes; a note that is covered turns green with a check."""
+    for i, (string_idx, fret, finger) in enumerate(notes):
         x, y = neck.target(string_idx, fret)
-        cv2.circle(display, (x, y), 8, (0, 255, 255), -1)
-        cv2.circle(display, (x, y), 8, (255, 255, 255), 2)
-        cv2.putText(display, str(finger), (x - 7, y + 7), FONT, 0.7, (0, 0, 0), 2)
+        if done is not None and done[i]:
+            cv2.circle(display, (x, y), 10, (0, 200, 0), -1)
+            cv2.circle(display, (x, y), 10, (255, 255, 255), 2)
+            cv2.polylines(display, [np.array([(x - 5, y), (x - 1, y + 4), (x + 6, y - 5)], np.int32)], False,
+                          (255, 255, 255), 2)
+        else:
+            cv2.circle(display, (x, y), 10, (0, 255, 255), -1)
+            cv2.circle(display, (x, y), 10, (255, 255, 255), 2)
+            cv2.putText(display, str(finger), (x - 7, y + 7), FONT, 0.7, (0, 0, 0), 2)
 
 
-def draw_fingertips(display, neck, fingertips, parallax):
+def draw_arrow(display, start, end):
+    """Arrow from a fingertip to the note it should cover."""
+    if np.hypot(end[0] - start[0], end[1] - start[1]) > 12:
+        cv2.arrowedLine(display, tuple(int(v) for v in start), tuple(int(v) for v in end), (0, 165, 255), 3,
+                        tipLength=0.25)
+
+
+def draw_fingertips(display, neck, fingertips, parallax, debug=False):
     """
-    A green dot per fingertip, a cyan ring at its estimated contact point (with the parallax correction)
-    and a label with the string and fret it was assigned to, for example D2.
+    A light-blue dot per fingertip. With debug, also a cyan ring at its estimated contact point (with the parallax
+    correction) and a label with the string and fret it was assigned to, for example D2.
     """
     for x, y in fingertips.values():
-        cv2.circle(display, (x, y), 5, (0, 255, 0), -1)
+        cv2.circle(display, (x, y), 7, (0, 0, 0), -1)
+        cv2.circle(display, (x, y), 5, (255, 200, 60), -1)  # light blue: stands out from the green "done" notes
+        if not debug:
+            continue
         label_at = (x, y)
         contact = neck.contact_pixel(x, y) if parallax else None
         if contact is not None:
@@ -82,6 +98,30 @@ def draw_fingertips(display, neck, fingertips, parallax):
         if hit is not None:
             put_text_bg(display, f"{STRING_NAMES[hit[0]]}{hit[1]}", (label_at[0] + 10, label_at[1] - 10),
                         0.5, (255, 255, 255), thickness=1)
+
+
+# --- heads-up display -------------------------------------------------------------------------------------
+
+def draw_gauge(display, center, radius, percent):
+    """A ring that fills with the accuracy (grey if unknown), red -> orange -> green, the number inside."""
+    cv2.circle(display, center, radius, (50, 50, 50), -1)
+    cv2.circle(display, center, radius, (90, 90, 90), 6)
+    if percent is None:
+        put_text_bg(display, "--", (center[0] - 14, center[1] + 7), 0.7, (200, 200, 200), thickness=2, pad=0)
+        return
+    color = (0, 200, 0) if percent == 100 else (0, 165, 255) if percent >= 50 else (60, 60, 230)
+    if percent > 0:
+        cv2.ellipse(display, center, (radius, radius), 0, -90, -90 + 360 * percent / 100, color, 6, cv2.LINE_AA)
+    text = f"{percent}"
+    (w, h), _ = cv2.getTextSize(text, FONT, 0.8, 2)
+    cv2.putText(display, text, (center[0] - w // 2, center[1] + h // 2), FONT, 0.8, (255, 255, 255), 2)
+
+
+def draw_banner(display, text, color, y_from_bottom=60):
+    """One short message, large, centered near the bottom of the image."""
+    scale = 0.9
+    (w, _), _ = cv2.getTextSize(text, FONT, scale, 2)
+    put_text_bg(display, text, ((display.shape[1] - w) // 2, display.shape[0] - y_from_bottom), scale, color, pad=10)
 
 
 # --- chord diagram ----------------------------------------------------------------------------------------
@@ -124,21 +164,3 @@ def draw_chord_diagram(frame, x, y, width, height, chord, capo=0):
             cv2.circle(frame, (cx, row_y), 8, (255, 255, 255), 1)
             if finger:
                 cv2.putText(frame, str(finger), (cx - 4, row_y + 4), FONT, 0.4, (0, 0, 0), 1)
-
-
-def draw_chord_instructions(frame, x, y, width, chord, capo=0):
-    """Where each finger goes (real frets, with the capo), in its own dark box right-aligned to x + width."""
-    lines = [f"Finger {finger} on string {NUM_STRINGS - s} ({STRING_NAMES[s]}) fret {fret}"
-             for s, fret, finger in fretted_notes(chord, capo)] or ["Open strings or muted"]
-    if capo:
-        lines.insert(0, f"Capo on fret {capo}")
-
-    scale, thickness, line_h, pad = 0.5, 1, 22, 10
-    box_w = max(width, max(cv2.getTextSize(line, FONT, scale, thickness)[0][0] for line in lines) + 2 * pad)
-    box_h = len(lines) * line_h + pad
-    left = x + width - box_w
-
-    cv2.rectangle(frame, (left, y), (left + box_w, y + box_h), PANEL_FILL, -1)
-    cv2.rectangle(frame, (left, y), (left + box_w, y + box_h), PANEL_BORDER, 2)
-    for i, line in enumerate(lines):
-        cv2.putText(frame, line, (left + pad, y + pad + 10 + i * line_h), FONT, scale, (255, 255, 255), thickness)

@@ -8,7 +8,8 @@ from chordar import config
 from chordar.geometry import FRET_BOUNDS, outline_u_range, string_u
 from chordar.overlay import draw_neck, put_text_bg
 from chordar.window import show, toggle_fullscreen
-from chordar.placement import (IDEAL_CENTER, alignment_metrics, evaluate, pixels_per_mm, smooth)
+from chordar.placement import (IDEAL_CENTER, alignment_metrics, evaluate, lighting_check, pixels_per_mm,
+                               set_reference_center, smooth)
 
 STABLE_FRAMES_REQUIRED = 20  # ~a second of good, uninterrupted framing before auto-advancing
 
@@ -61,13 +62,15 @@ def draw_ghost(display, aligned):
                 0.5, accent, thickness=1)
 
 
-def calibration_step(frame, markers, hands, history):
+def calibration_step(frame, markers, hands, history, found=None):
     """
     Processes one camera frame: detects the neck and hand, draws the target neck, the message and the
     checklist. Returns (display image, ready), where ready means the neck is aligned and a hand is detected.
-    history carries the smoothing state between frames.
+    history carries the smoothing state between frames. If found is a list, the detected neck is appended to it.
     """
     display, neck = markers.track(frame)
+    if found is not None and neck is not None:
+        found.append(neck)
     size = (display.shape[1], display.shape[0])
     hand_ok = bool(hands.track(frame, neck.to_image(0.5, 0.2) if neck is not None else None))
 
@@ -79,12 +82,23 @@ def calibration_step(frame, markers, hands, history):
         history.clear()
     geometry_ok = neck is not None and all(c["ok"] for c in checks)
 
+    gray = cv2.flip(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 1)  # same orientation as the display
+    neck_mean = None
+    if neck is not None:
+        region = np.zeros(gray.shape, np.uint8)
+        corners = np.array([[int(c[0]), int(c[1])] for c in neck.corners], np.int32)
+        cv2.fillConvexPoly(region, cv2.convexHull(corners), 255)
+        neck_mean = float(gray[region > 0].mean()) if region.any() else None
+    light = lighting_check(float(gray.mean()), neck_mean)
+
     if neck is None:
         message, color = "Move the guitar so all 4 ArUco markers (IDs 0-3) are visible", BAD_COLOR
     elif not geometry_ok:
         message, color = next(c["hint"] for c in checks if not c["ok"]), WARN_COLOR
     elif not hand_ok:
         message, color = "Neck aligned - place your fretting hand on the neck", WARN_COLOR
+    elif not light["ok"]:
+        message, color = light["hint"], WARN_COLOR
     else:
         message, color = "Good to go!", GOOD_COLOR
 
@@ -92,6 +106,7 @@ def calibration_step(frame, markers, hands, history):
     put_text_bg(display, "CALIBRATION", (20, 30), 0.9, (255, 255, 255))
     put_text_bg(display, message, (20, 65), 0.7, color)
     rows = [(c["label"], c["ok"], c["detail"]) for c in checks]
+    rows.append(("Light", light["ok"], light["detail"]))
     rows.append(("Hand", hand_ok, "detected" if hand_ok else "not detected"))
     for i, (label, ok, detail) in enumerate(rows):
         put_text_bg(display, f"{label:<13}{'OK' if ok else '--'}  {detail}", (20, 130 + 26 * i), 0.5,
@@ -112,11 +127,12 @@ def run_calibration(capture, markers, hands, window):
         if not ok:
             return False
 
-        display, ready = calibration_step(frame, markers, hands, history)
+        found = []
+        display, ready = calibration_step(frame, markers, hands, history, found)
         stable_frames = stable_frames + 1 if ready else 0
         put_text_bg(display, f"Stable: {min(stable_frames, STABLE_FRAMES_REQUIRED)}/{STABLE_FRAMES_REQUIRED}",
                     (20, 95), 0.6, (255, 255, 255), thickness=1)
-        put_text_bg(display, "Press ENTER to start anyway, ESC to quit", (20, display.shape[0] - 20),
+        put_text_bg(display, "ENTER: use this position as my reference, F: full screen, ESC: quit", (20, display.shape[0] - 20),
                     0.5, (255, 255, 255), thickness=1)
         show(window, display)
 
@@ -125,5 +141,8 @@ def run_calibration(capture, markers, hands, window):
             return False
         if key == ord("f"):
             toggle_fullscreen(window)
-        if key == 13 or stable_frames >= STABLE_FRAMES_REQUIRED:  # ENTER skips the wait
+        if key == 13 and found:  # ENTER: keep the guitar where it is and make that the reference
+            set_reference_center(found[0], (display.shape[1], display.shape[0]))
+            return True
+        if key == 13 or stable_frames >= STABLE_FRAMES_REQUIRED:
             return True
