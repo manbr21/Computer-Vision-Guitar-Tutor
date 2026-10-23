@@ -13,14 +13,14 @@ from chordar.overlay import (draw_arrow, draw_banner, draw_capo, draw_chord_diag
                              draw_fingertips, draw_gauge, draw_neck, put_text_bg)
 from chordar.placement import PlacementMonitor
 from chordar.scoring import chord_accuracy
-from chordar.window import open_window, show, toggle_fullscreen
+from chordar.window import open_window, show
 
 log = logging.getLogger(__name__)
 
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
 HELP_LINES = ["1-8   choose the chord", "[ ]   capo up / down (0 removes it)", "A     auto-advance on a perfect strum",
-              "F     full screen", "C     recalibrate", "P     parallax fix on/off", "X     swap camera pose",
+              "C     recalibrate", "P     parallax fix on/off", "X     swap camera pose",
               "D     technical info", "H     this help", "ESC   quit"]
 STRUM_BANNER_S = 2.0  # how long the result of a strum stays on screen
 WHITE, GREEN, ORANGE, RED, GRAY = (255, 255, 255), (0, 255, 0), (0, 165, 255), (0, 0, 255), (200, 200, 200)
@@ -116,8 +116,6 @@ class ChordARApp:
             self.show_help = not self.show_help
         elif key == ord("d"):
             self.debug_info = not self.debug_info
-        elif key == ord("f"):
-            toggle_fullscreen(WINDOW)
         elif key == ord("a"):
             self.auto_advance = not self.auto_advance
         elif key == ord("p"):

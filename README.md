@@ -74,7 +74,6 @@ comfortable and press ENTER to use that position as the reference (ESC quits). I
 | `1`-`8` | choose the chord (A, Am, C, D, Dm, E, Em, G) |
 | `]` / `[` | move the virtual capo up / down a fret (up to fret 7); `0` removes it |
 | `A` | auto-advance: a perfect strum moves to the next chord |
-| `F` | toggle full screen (`FULLSCREEN = True` in `config.py` starts in full screen) |
 | `D` | technical info: pose, parallax, fingertip labels, FPS, microphone level |
 | `H` | list of the keys |
 | `P` | toggle the parallax correction (compare the score with and without it) |
@@ -93,7 +92,7 @@ chordar/
   hands.py        fingertip tracking (MediaPipe Hands)
   audio.py        strum detection from the microphone
   coaching.py     which notes are done and the one correction to say
-  window.py       full-screen display window, image scaled without stretching
+  window.py       resizable display window, image scaled without stretching
   chords.py       chord library
   scoring.py      chord accuracy
   placement.py    neck-placement metrics and checks, drift monitor

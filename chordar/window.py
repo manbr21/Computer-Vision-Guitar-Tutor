@@ -1,27 +1,11 @@
-"""The display window: full screen by default, with the image scaled to fit without stretching."""
+"""The display window: resizable, with the image scaled to fit without stretching."""
 import cv2
 import numpy as np
 
-from chordar import config
-
-_fullscreen = {}
-_pending = {}
-
 
 def open_window(name):
-    """Creates the window, full screen if config.FULLSCREEN."""
+    """Creates a resizable window. For a bigger picture, enlarge it with the mouse or the green button of macOS."""
     cv2.namedWindow(name, cv2.WINDOW_NORMAL)
-    _fullscreen[name] = False
-    _pending[name] = config.FULLSCREEN  # applied after the first frame is on screen, not before
-
-
-def set_fullscreen(name, on):
-    _fullscreen[name] = on
-    cv2.setWindowProperty(name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN if on else cv2.WINDOW_NORMAL)
-
-
-def toggle_fullscreen(name):
-    set_fullscreen(name, not _fullscreen.get(name, False))
 
 
 def fit(image, width, height):
@@ -44,6 +28,3 @@ def show(name, image):
     if width > 0 and height > 0 and (width, height) != (image.shape[1], image.shape[0]):
         image = fit(image, width, height)
     cv2.imshow(name, image)
-    if _pending.pop(name, False):  # a window that goes full screen before it has an image stays grey on macOS
-        cv2.waitKey(1)
-        set_fullscreen(name, True)
