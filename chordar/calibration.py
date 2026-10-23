@@ -7,6 +7,7 @@ import numpy as np
 from chordar import config
 from chordar.geometry import FRET_BOUNDS, outline_u_range, string_u
 from chordar.overlay import draw_neck, put_text_bg
+from chordar.window import show, toggle_fullscreen
 from chordar.placement import (IDEAL_CENTER, alignment_metrics, evaluate, pixels_per_mm, smooth)
 
 STABLE_FRAMES_REQUIRED = 20  # ~a second of good, uninterrupted framing before auto-advancing
@@ -117,10 +118,12 @@ def run_calibration(capture, markers, hands, window):
                     (20, 95), 0.6, (255, 255, 255), thickness=1)
         put_text_bg(display, "Press ENTER to start anyway, ESC to quit", (20, display.shape[0] - 20),
                     0.5, (255, 255, 255), thickness=1)
-        cv2.imshow(window, display)
+        show(window, display)
 
         key = cv2.waitKey(1) & 0xFF
         if key == 27:    # ESC
             return False
+        if key == ord("f"):
+            toggle_fullscreen(window)
         if key == 13 or stable_frames >= STABLE_FRAMES_REQUIRED:  # ENTER skips the wait
             return True

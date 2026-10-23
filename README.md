@@ -71,6 +71,7 @@ ESC quits). Then the lesson:
 | `1`-`8` | choose the chord (A, Am, C, D, Dm, E, Em, G) |
 | `]` / `[` | move the virtual capo up / down a fret (up to fret 7); `0` removes it |
 | `A` | auto-advance: a perfect strum moves to the next chord |
+| `F` | toggle full screen (starts in full screen; `FULLSCREEN` in `config.py`) |
 | `P` | toggle the parallax correction (compare the score with and without it) |
 | `X` | swap between the two camera-pose solutions |
 | `C` | recalibrate (ESC there goes back to playing) |
@@ -86,6 +87,7 @@ chordar/
   markers.py      ArUco detection and smoothing
   hands.py        fingertip tracking (MediaPipe Hands)
   audio.py        strum detection from the microphone
+  window.py       full-screen display window, image scaled without stretching
   chords.py       chord library
   scoring.py      chord accuracy
   placement.py    neck-placement metrics and checks, drift monitor

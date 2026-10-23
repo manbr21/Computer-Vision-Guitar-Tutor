@@ -12,12 +12,13 @@ from chordar.overlay import (draw_capo, draw_chord_diagram, draw_chord_instructi
                              draw_fingertips, draw_neck, put_text_bg)
 from chordar.placement import PlacementMonitor
 from chordar.scoring import chord_accuracy
+from chordar.window import open_window, show, toggle_fullscreen
 
 log = logging.getLogger(__name__)
 
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
-KEY_HELP = ("1-8 chord, [ ] capo, A auto-advance on strum,", "P parallax, X pose, C recalibrate, ESC exit")
+KEY_HELP = ("1-8 chord, [ ] capo, A auto-advance on strum,", "P parallax, X pose, C recalibrate, F fullscreen, ESC exit")
 STRUM_BANNER_S = 2.0  # how long the result of a strum stays on screen
 WHITE, GREEN, ORANGE, RED, GRAY = (255, 255, 255), (0, 255, 0), (0, 165, 255), (0, 0, 255), (200, 200, 200)
 
@@ -41,6 +42,7 @@ class ChordARApp:
         """Calibrates, then shows the video with the overlay until ESC. Releases the camera at the end."""
         if self.audio is not None:
             self.audio.start()
+        open_window(WINDOW)
         try:
             if not run_calibration(self.capture, self.markers, self.hands, WINDOW):
                 return
@@ -49,7 +51,7 @@ class ChordARApp:
                 if not ok:
                     log.warning("Camera stopped delivering frames")
                     break
-                cv2.imshow(WINDOW, self.process_frame(frame, time.time()))
+                show(WINDOW, self.process_frame(frame, time.time()))
                 if not self.handle_key(cv2.waitKey(1) & 0xFF):
                     break
         finally:
@@ -98,6 +100,8 @@ class ChordARApp:
             self.capo = max(self.capo - 1, 0)
         elif key == ord("0"):
             self.capo = 0
+        elif key == ord("f"):
+            toggle_fullscreen(WINDOW)
         elif key == ord("a"):
             self.auto_advance = not self.auto_advance
         elif key == ord("p"):
