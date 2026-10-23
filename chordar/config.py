@@ -39,7 +39,7 @@ CAMERA_HFOV_DEG = 65.0    # horizontal field of view of the webcam (laptop webca
 MAX_PARALLAX_MM = 25.0    # ignore corrections larger than this (degenerate pose)
 
 # Strum detection from the microphone (chordar/audio.py)
-FULLSCREEN = True               # start in full screen; F toggles it while running
+FULLSCREEN = False              # start in full screen (on macOS this can leave a grey window: prefer F while running)
 AUDIO_ENABLED = True          # --no-audio on the command line turns it off for one run
 STRUM_MIN_RMS = 0.02          # a strum must be at least this loud (full scale = 1.0)
 STRUM_RATIO = 4.0             # ... and this many times louder than the running background level

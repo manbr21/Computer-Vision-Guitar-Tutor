@@ -74,7 +74,7 @@ comfortable and press ENTER to use that position as the reference (ESC quits). I
 | `1`-`8` | choose the chord (A, Am, C, D, Dm, E, Em, G) |
 | `]` / `[` | move the virtual capo up / down a fret (up to fret 7); `0` removes it |
 | `A` | auto-advance: a perfect strum moves to the next chord |
-| `F` | toggle full screen (starts in full screen; `FULLSCREEN` in `config.py`) |
+| `F` | toggle full screen (`FULLSCREEN = True` in `config.py` starts in full screen) |
 | `D` | technical info: pose, parallax, fingertip labels, FPS, microphone level |
 | `H` | list of the keys |
 | `P` | toggle the parallax correction (compare the score with and without it) |

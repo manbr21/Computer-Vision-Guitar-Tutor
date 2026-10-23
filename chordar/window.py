@@ -5,12 +5,14 @@ import numpy as np
 from chordar import config
 
 _fullscreen = {}
+_pending = {}
 
 
 def open_window(name):
     """Creates the window, full screen if config.FULLSCREEN."""
     cv2.namedWindow(name, cv2.WINDOW_NORMAL)
-    set_fullscreen(name, config.FULLSCREEN)
+    _fullscreen[name] = False
+    _pending[name] = config.FULLSCREEN  # applied after the first frame is on screen, not before
 
 
 def set_fullscreen(name, on):
@@ -42,3 +44,6 @@ def show(name, image):
     if width > 0 and height > 0 and (width, height) != (image.shape[1], image.shape[0]):
         image = fit(image, width, height)
     cv2.imshow(name, image)
+    if _pending.pop(name, False):  # a window that goes full screen before it has an image stays grey on macOS
+        cv2.waitKey(1)
+        set_fullscreen(name, True)
