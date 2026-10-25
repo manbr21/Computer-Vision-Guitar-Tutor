@@ -74,9 +74,11 @@ def draw_chord_targets(display, neck, notes, done=None):
 
 def draw_arrow(display, start, end):
     """Arrow from a fingertip to the note it should cover."""
-    if np.hypot(end[0] - start[0], end[1] - start[1]) > 12:
+    length = np.hypot(end[0] - start[0], end[1] - start[1])
+    if length > 12:
+        # the arrow head has a fixed size in pixels: a head proportional to a long arrow would be enormous
         cv2.arrowedLine(display, tuple(int(v) for v in start), tuple(int(v) for v in end), (0, 165, 255), 3,
-                        tipLength=0.25)
+                        tipLength=min(0.25, 18 / length))
 
 
 def draw_fingertips(display, neck, fingertips, parallax, debug=False):
