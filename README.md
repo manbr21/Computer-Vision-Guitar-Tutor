@@ -25,6 +25,10 @@ It is a fork of [Chordially / Computer-Vision-Guitar-Tutor](https://github.com/n
   that moment ("Strum! C: 100%"), and with auto-advance (`A`) a perfect strum moves on to the next chord.
   A small bar shows the microphone level. This detects *that* you strummed, not *which* chord sounded.
 
+- **Marker-free tracking (experimental):** instead of the ArUco markers, take one photo of the guitar, click the four
+  corners of the neck, and the program finds the neck in every frame by matching features of that photo
+  (see "Without markers" below).
+
 ## How it works
 
 ```
@@ -82,6 +86,29 @@ comfortable and press ENTER to use that position as the reference (ESC quits). I
 | `C` | recalibrate (ESC there goes back to playing) |
 | `ESC` | quit |
 
+## Without markers (experimental)
+
+```
+python -m chordar.reference --out references/mine.npz     # SPACE takes the photo, then click the 4 corners
+python -m chordar --reference references/mine.npz
+```
+
+The corners to click, in order, as the neck looks on the (mirrored) screen: the nut at the low E string (top), the
+nut at the high e string (bottom), fret 12 at the high e string (bottom), fret 12 at the low E string (top); they are
+the points the markers' corners mark. The tracker matches ORB features of the photo's neck region to each frame and
+estimates a homography (RANSAC); its four corners feed the same fretboard model as the markers do.
+
+To measure it against the markers, record sessions with the markers glued on and evaluate:
+
+```
+python -m chordar --record sessions/                      # raw video + the corners the markers found (ground truth)
+python validation/evaluate_recording.py sessions/<date_time> --reference-frame 30
+python validation/markerless_test.py --photo photo_with_markers.jpg    # random changes to one photo
+```
+
+The markers are painted out of the reference and masked in every frame, so the marker-free tracker cannot use them.
+Not yet validated on a real session without markers.
+
 ## Project layout
 
 ```
@@ -93,6 +120,9 @@ chordar/
   hands.py        fingertip tracking (MediaPipe Hands)
   audio.py        strum detection from the microphone
   coaching.py     which notes are done and the one correction to say
+  markerless.py   marker-free neck tracking from a reference photo
+  reference.py    tool to make that reference (photo + four clicks)
+  recorder.py     records a session (raw video + ground-truth corners)
   window.py       resizable display window, image scaled without stretching
   chords.py       chord library
   scoring.py      chord accuracy
@@ -114,6 +144,8 @@ python validation/synthetic_parallax_test.py     # virtual camera: tilt, off-cen
 python validation/calibration_alignment_test.py  # placement metrics, hints and the drift monitor
 python validation/app_smoke_test.py              # ArUco markers drawn on a synthetic frame, end to end
 python validation/capo_test.py                   # virtual capo: shifted notes, score, keys and drawing
+python validation/recorder_test.py                # the session recorder
+python validation/reference_test.py               # marker-free tracker on a synthetic textured scene
 python validation/coaching_test.py                # finger coaching messages
 python validation/lighting_test.py                # lighting advice in the calibration
 python validation/audio_test.py                  # strum detector on synthetic sound, and its use by the app

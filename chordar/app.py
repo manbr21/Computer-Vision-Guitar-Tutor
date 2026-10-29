@@ -27,11 +27,14 @@ WHITE, GREEN, ORANGE, RED, GRAY = (255, 255, 255), (0, 255, 0), (0, 165, 255), (
 
 
 class ChordARApp:
-    def __init__(self, capture, audio=None):
-        """audio: a StrumListener (or anything with start/poll/level/stop), or None to play without sound."""
+    def __init__(self, capture, audio=None, recorder=None, tracker=None):
+        """
+        audio: a StrumListener (or anything with start/poll/level/stop), or None to play without sound.
+        recorder: a SessionRecorder to save the session, or None. tracker: the neck tracker (default: ArUco markers).
+        """
         self.capture = capture
         self.audio = audio
-        self.markers = MarkerTracker()
+        self.markers = tracker or MarkerTracker()
         self.hands = FingertipTracker()
         self.monitor = PlacementMonitor()
         self.chord = "C"
@@ -57,12 +60,17 @@ class ChordARApp:
                 if not ok:
                     log.warning("Camera stopped delivering frames")
                     break
-                show(WINDOW, self.process_frame(frame, time.time()))
+                now = time.time()
+                show(WINDOW, self.process_frame(frame, now))
+                if self.recorder is not None:
+                    self.recorder.write(frame, self.markers, now)
                 if not self.handle_key(cv2.waitKey(1) & 0xFF):
                     break
         finally:
             if self.audio is not None:
                 self.audio.stop()
+            if self.recorder is not None:
+                self.recorder.close()
             self.capture.release()
             self.hands.close()
             cv2.destroyAllWindows()

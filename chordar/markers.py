@@ -24,6 +24,7 @@ class MarkerTracker:
         self._history = {marker_id: deque(maxlen=SMOOTH_FRAMES) for marker_id in config.NECK_CORNER}
         self._last_seen = {}
         self._frame_count = 0
+        self.fresh_corners = {}   # neck corner name -> pixel (display coords), only for markers seen in this very frame
 
     def track(self, frame, pose_variant=0, draw=True):
         """
@@ -31,6 +32,7 @@ class MarkerTracker:
         Fretboard (None until all four corners are known; a marker that is briefly lost keeps its last position).
         """
         height, width = frame.shape[:2]
+        self.fresh_corners = {}
         corners, ids, rejected = self._detector.detectMarkers(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
         self._log_detections(ids, rejected)
 
@@ -55,6 +57,7 @@ class MarkerTracker:
     def _quad_corners(self, display, corners, ids, width, draw=True):
         """Neck corner name -> pixel, from the markers seen now and, for the missing ones, their last position."""
         quad = {}
+        self.fresh_corners = {}
         for i, marker_id in enumerate(ids.flatten()):
             if marker_id not in config.NECK_CORNER:
                 continue
@@ -72,6 +75,7 @@ class MarkerTracker:
 
             name, corner_index = config.NECK_CORNER[marker_id]
             quad[name] = smoothed[corner_index]
+            self.fresh_corners[name] = mirrored[0][corner_index].copy()
 
         for marker_id, (name, corner_index) in config.NECK_CORNER.items():
             if name not in quad and marker_id in self._last_seen:
