@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chordar import config
 from chordar.app import ChordARApp
 from chordar.calibration import calibration_step
+from chordar.chords import fretted_notes
 
 W, H, MARKER, MARGIN = 1280, 720, 100, 20
 
@@ -83,6 +84,21 @@ def main():
     check("P toggles the parallax fix and X swaps the pose", not app.parallax_on and app.pose_variant == 1)
     check("ESC asks to quit", app.handle_key(27) is False)
     app.process_frame(frame, now=0.0)  # still works with the alternative settings and chord
+
+    app.chord, app.capo = "C", 0
+    app.handle_key(ord("o"))
+    check("O hides the neck markings", not app.show_neck_overlay)
+    for _ in range(3):
+        bare = app.process_frame(frame, now=0.0)
+    app.handle_key(ord("o"))
+    for _ in range(3):
+        full = app.process_frame(frame, now=0.0)
+    _, neck_now = app.markers.track(frame, draw=False)
+    red = lambda img: int(np.sum(np.all(img == (0, 0, 255), axis=2)))
+    check("the red neck outline is drawn with the markings and gone without them", red(full) > 500 and red(bare) < 50)
+    x, y = neck_now.target(*fretted_notes("C")[0][:2])
+    patch = bare[y - 12:y + 12, x - 12:x + 12]
+    check("the chord target stays when the markings are hidden", int(np.sum(np.all(patch == (0, 255, 255), axis=2))) > 50)
 
     blank = np.full((H, W, 3), 200, np.uint8)
     shown = app.process_frame(blank, now=0.0)

@@ -76,6 +76,7 @@ comfortable and press ENTER to use that position as the reference (ESC quits). I
 | `A` | auto-advance: a perfect strum moves to the next chord |
 | `D` | technical info: pose, parallax, fingertip labels, FPS, microphone level |
 | `H` | list of the keys |
+| `O` | hide / show the neck markings (markers, outline, frets, strings); the fingers and the chord targets stay |
 | `P` | toggle the parallax correction (compare the score with and without it) |
 | `X` | swap between the two camera-pose solutions |
 | `C` | recalibrate (ESC there goes back to playing) |

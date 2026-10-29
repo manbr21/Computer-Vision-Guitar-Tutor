@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
-HELP_LINES = ["1-8   choose the chord", "[ ]   capo up / down (0 removes it)", "A     auto-advance on a perfect strum",
+HELP_LINES = ["1-8   choose the chord", "[ ]   capo up / down (0 removes it)", "A     auto-advance on a perfect strum", "O     hide / show the neck markings",
               "C     recalibrate", "P     parallax fix on/off", "X     swap camera pose",
               "D     technical info", "H     this help", "ESC   quit"]
 STRUM_BANNER_S = 2.0  # how long the result of a strum stays on screen
@@ -40,6 +40,7 @@ class ChordARApp:
         self.pose_variant = 0    # X swaps between the two possible camera-pose solutions
         self.auto_advance = False  # A: a correct strum moves on to the next chord
         self.last_strum = None   # (time, chord, capo, score or None) of the latest strum
+        self.show_neck_overlay = True  # O: the markers, outline, frets and strings; off leaves only fingers and targets
         self.show_help = False   # H: list of the keys
         self.debug_info = False  # D: technical details (pose, parallax, fingertip labels, FPS, mic level)
 
@@ -68,7 +69,7 @@ class ChordARApp:
 
     def process_frame(self, frame, now):
         """Detects the neck and fingers in a camera frame and returns the image to show. now: frame start time."""
-        display, neck = self.markers.track(frame, self.pose_variant)
+        display, neck = self.markers.track(frame, self.pose_variant, draw=self.show_neck_overlay)
         fingertips = self.hands.track(frame, neck.to_image(0.5, 0.2) if neck is not None else None)
         size = (display.shape[1], display.shape[0])
 
@@ -76,7 +77,8 @@ class ChordARApp:
         if neck is not None:
             notes = fretted_notes(self.chord, self.capo)
             coaching = coach(notes, fingertips, neck, self.parallax_on)
-            draw_neck(display, neck)
+            if self.show_neck_overlay:
+                draw_neck(display, neck)
             if self.capo:
                 draw_capo(display, neck, self.capo)
             draw_chord_targets(display, neck, notes, coaching.done)
@@ -112,6 +114,8 @@ class ChordARApp:
             self.capo = max(self.capo - 1, 0)
         elif key == ord("0"):
             self.capo = 0
+        elif key == ord("o"):
+            self.show_neck_overlay = not self.show_neck_overlay
         elif key == ord("h"):
             self.show_help = not self.show_help
         elif key == ord("d"):

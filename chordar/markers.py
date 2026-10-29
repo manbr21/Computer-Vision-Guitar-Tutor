@@ -25,17 +25,17 @@ class MarkerTracker:
         self._last_seen = {}
         self._frame_count = 0
 
-    def track(self, frame, pose_variant=0):
+    def track(self, frame, pose_variant=0, draw=True):
         """
-        Returns (display, neck): the mirrored frame with the detected markers drawn, and the Fretboard
-        (None until all four corners are known; a marker that is briefly lost keeps its last position).
+        Returns (display, neck): the mirrored frame with the detected markers drawn (unless draw=False), and the
+        Fretboard (None until all four corners are known; a marker that is briefly lost keeps its last position).
         """
         height, width = frame.shape[:2]
         corners, ids, rejected = self._detector.detectMarkers(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
         self._log_detections(ids, rejected)
 
         display = cv2.flip(frame, 1)
-        quad = self._quad_corners(display, corners, ids, width) if ids is not None else {}
+        quad = self._quad_corners(display, corners, ids, width, draw) if ids is not None else {}
         if len(quad) < 4:
             return display, None
         neck = Fretboard(quad["TL"], quad["TR"], quad["BR"], quad["BL"],
@@ -52,7 +52,7 @@ class MarkerTracker:
             found = ids.flatten().tolist() if ids is not None else []
             log.debug("Detected IDs: %s | rejected candidates: %d", found, len(rejected))
 
-    def _quad_corners(self, display, corners, ids, width):
+    def _quad_corners(self, display, corners, ids, width, draw=True):
         """Neck corner name -> pixel, from the markers seen now and, for the missing ones, their last position."""
         quad = {}
         for i, marker_id in enumerate(ids.flatten()):
@@ -65,9 +65,10 @@ class MarkerTracker:
             smoothed = np.mean(self._history[marker_id], axis=0)
             self._last_seen[marker_id] = smoothed
 
-            aruco.drawDetectedMarkers(display, [mirrored], ids[i])
-            cv2.putText(display, f"ID:{marker_id}", tuple(smoothed[0].astype(int)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            if draw:
+                aruco.drawDetectedMarkers(display, [mirrored], ids[i])
+                cv2.putText(display, f"ID:{marker_id}", tuple(smoothed[0].astype(int)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
             name, corner_index = config.NECK_CORNER[marker_id]
             quad[name] = smoothed[corner_index]
