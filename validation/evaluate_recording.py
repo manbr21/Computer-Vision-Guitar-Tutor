@@ -5,8 +5,8 @@ of that session as the ground truth.
 The markers are glued on during the recording; they are painted out of the reference and ignored in every frame
 (masked) so the marker-free tracker cannot use them.
 
-    python validation/evaluate_recording.py SESSION_FOLDER --reference-frame 30
-    python validation/evaluate_recording.py SESSION_FOLDER --reference references/other_session.npz
+    python validation/evaluate_recording.py sessions/A --save-reference references/from_A.npz   # reference from session A
+    python validation/evaluate_recording.py sessions/B --reference references/from_A.npz        # test another session with it
 """
 import argparse
 import csv
@@ -44,6 +44,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("session")
     parser.add_argument("--reference", help="a reference .npz made elsewhere (default: built from a frame of this session)")
+    parser.add_argument("--save-reference", metavar="FILE", help="save the reference built from this session, to evaluate other sessions with it")
     parser.add_argument("--reference-frame", type=int, default=None, help="frame of the session to use as the reference photo")
     args = parser.parse_args()
 
@@ -59,6 +60,10 @@ def main():
         reference = NeckReference(cv2.inpaint(frame, squares, 7, cv2.INPAINT_TELEA), truth[index], ignore_mask=squares)
         print(f"reference built from frame {index}")
         truth.pop(index)
+        if args.save_reference:
+            os.makedirs(os.path.dirname(os.path.abspath(args.save_reference)), exist_ok=True)
+            reference.save(args.save_reference)
+            print(f"reference saved to {args.save_reference}")
     tracker = MarklessTracker(reference)
 
     capture = cv2.VideoCapture(os.path.join(args.session, "video.mp4"))
