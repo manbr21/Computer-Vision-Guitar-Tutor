@@ -59,6 +59,46 @@ def main():
         check(f"the video has the same frames, un-mirrored and without overlay ({count} frames)",
               ok and count == 5 and first.shape == frame.shape and float(np.abs(first.astype(int) - frame).mean()) < 6)
 
+    # the real run loop (window, calibration and keys replaced by stand-ins), with a recorder and an audio stand-in
+    from unittest import mock
+    import chordar.app as app_module
+
+    class Camera:
+        def __init__(self):
+            self.frames = 6
+
+        def read(self):
+            self.frames -= 1
+            return (True, frame.copy()) if self.frames >= 0 else (False, None)
+
+        def release(self):
+            pass
+
+    class Audio:
+        active, level = True, 0.0
+        started = stopped = False
+
+        def start(self):
+            Audio.started = True
+
+        def poll(self):
+            return []
+
+        def stop(self):
+            Audio.stopped = True
+
+    with tempfile.TemporaryDirectory() as folder, \
+            mock.patch.object(app_module, "open_window"), mock.patch.object(app_module, "show"), \
+            mock.patch.object(app_module, "run_calibration", return_value=True), \
+            mock.patch.object(app_module.cv2, "waitKey", return_value=255), \
+            mock.patch.object(app_module.cv2, "destroyAllWindows"):
+        recorder = SessionRecorder(folder)
+        app = app_module.ChordARApp(Camera(), Audio(), recorder)
+        app.run()
+        rows = list(csv.DictReader(open(os.path.join(recorder.path, "corners.csv"))))
+        check("run() records every frame the camera delivered and closes the recorder", len(rows) == 6 and recorder._file.closed)
+        check("run() starts and stops the audio", Audio.started and Audio.stopped)  # run() also closes the hand tracker
+
     print()
     if failures:
         print("FAIL:", *failures, sep="\n  ")

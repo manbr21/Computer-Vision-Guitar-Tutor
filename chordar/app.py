@@ -34,6 +34,7 @@ class ChordARApp:
         """
         self.capture = capture
         self.audio = audio
+        self.recorder = recorder
         self.markers = tracker or MarkerTracker()
         self.hands = FingertipTracker()
         self.monitor = PlacementMonitor()
