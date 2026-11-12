@@ -96,7 +96,9 @@ python -m chordar --reference references/mine.npz
 The corners to click, in order, as the neck looks on the (mirrored) screen: the nut at the low E string (top), the
 nut at the high e string (bottom), fret 12 at the high e string (bottom), fret 12 at the low E string (top); they are
 the points the markers' corners mark. The tracker matches ORB features of the photo's neck region to each frame and
-estimates a homography (RANSAC); its four corners feed the same fretboard model as the markers do.
+estimates a homography (RANSAC); in between, the corners are followed from frame to frame by optical flow, and each
+match with the photo is blended in lightly (a complementary filter: the flow is steady but drifts, the match does not
+drift but jumps). The four corners feed the same fretboard model as the markers do.
 
 To measure it against the markers, record sessions with the markers glued on and evaluate:
 

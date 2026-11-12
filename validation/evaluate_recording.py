@@ -68,25 +68,33 @@ def main():
 
     capture = cv2.VideoCapture(os.path.join(args.session, "video.mp4"))
     errors, s_acc, f_acc, times, evaluated, found_n = [], [], [], [], 0, 0
+    est_steps, gt_steps, previous = [], [], None   # frame-to-frame movement of the corners, for consecutive frames
     index = -1
     while True:
         ok, frame = capture.read()
         if not ok:
             break
         index += 1
-        if index not in truth:
-            continue
-        evaluated += 1
+        # every frame goes through the tracker, in order, as in the app; only frames with ground truth are scored
         allowed = 255 - marker_squares(frame)
         start = time.perf_counter()
-        found, _ = tracker.estimate(frame, allowed)
+        found = tracker.update(frame, allowed)
         times.append((time.perf_counter() - start) * 1000)
+        if index not in truth:
+            previous = None
+            continue
+        evaluated += 1
         if found is None:
+            previous = None
             continue
         found_n += 1
         errors.append(float(np.mean(np.linalg.norm(found - truth[index], axis=1))))
         s, f = string_fret_accuracy(truth[index], found, frame.shape[1::-1])
         s_acc.append(s), f_acc.append(f)
+        if previous is not None and previous[0] == index - 1:
+            est_steps.append(float(np.mean(np.linalg.norm(found - previous[1], axis=1))))
+            gt_steps.append(float(np.mean(np.linalg.norm(truth[index] - previous[2], axis=1))))
+        previous = (index, found, truth[index])
     capture.release()
 
     neck_len = float(np.mean([np.linalg.norm(t[0] - t[3]) for t in truth.values()]))
@@ -97,6 +105,9 @@ def main():
               f" ({100 * np.median(errors) / neck_len:.1f}% of the neck length)")
         print(f"within 3% length: {np.mean([e < 0.03 * neck_len for e in errors]):.0%} of the found frames")
         print(f"string read right: {np.mean(s_acc):.0%}   fret read right: {np.mean(f_acc):.0%}   (probe points 6 strings x frets 1-4)")
+    if est_steps:
+        print(f"jitter (px/frame): estimate {np.median(est_steps):.2f}, markers {np.median(gt_steps):.2f}; "
+              f"90th percentile estimate {np.percentile(est_steps, 90):.1f}, markers {np.percentile(gt_steps, 90):.1f}")
     print(f"time per frame:   {np.mean(times):.0f} ms")
 
 

@@ -72,6 +72,27 @@ def main():
             worst = max(worst, float(np.abs(got - truth).max()))
     check(f"a moved, rotated, rescaled and noisy view is followed (lost {lost}/30, worst error {worst:.1f} px)", lost == 0 and worst < 4)
 
+    # a slow sequence with sensor noise: followed from frame to frame, the corners must be steady and right
+    sequence = MarklessTracker(reference)
+    errors, steps, previous = [], [], None
+    for i in range(40):
+        M = cv2.getRotationMatrix2D((W / 2, H / 2), 3 * np.sin(i / 7), 1 + 0.03 * np.sin(i / 9))
+        M[:, 2] += (12 * np.sin(i / 5), 8 * np.cos(i / 6))
+        frame = cv2.warpAffine(scene, M, (W, H), borderMode=cv2.BORDER_REPLICATE).astype(np.float32)
+        frame = np.clip(frame + np.random.default_rng(i).normal(0, 6, frame.shape), 0, 255).astype(np.uint8)
+        truth = cv2.transform(expected_raw.reshape(-1, 1, 2), M).reshape(4, 2)
+        got = sequence.update(frame)
+        if got is None:
+            errors.append(99.0)
+            continue
+        errors.append(float(np.mean(np.linalg.norm(got - truth, axis=1))))
+        if previous is not None:
+            steps.append(float(np.mean(np.linalg.norm((got - previous[0]) - (truth - previous[1]), axis=1))))
+        previous = (got, truth)
+    check(f"a noisy slow sequence is tracked (median error {np.median(errors):.1f} px, worst {max(errors):.1f} px)",
+          np.median(errors) < 3 and max(errors) < 8)
+    check(f"... and the corners are steady: the step error is {np.median(steps):.2f} px per frame", np.median(steps) < 1.0)
+
     blank = np.full((H, W, 3), 120, np.uint8)
     got, _ = tracker.estimate(blank)
     check("a frame without the neck gives no corners", got is None)
