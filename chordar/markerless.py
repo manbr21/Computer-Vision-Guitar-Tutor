@@ -14,16 +14,21 @@ from chordar.geometry import Fretboard
 log = logging.getLogger(__name__)
 
 WORK_WIDTH = 640        # frames are matched at this width (the features are found much faster than at full size)
-N_FEATURES = 1500
+N_FEATURES = 3000
+FAST_THRESHOLD = 10      # ORB corner threshold; lower finds features on low-contrast surfaces such as a dark fretboard
 RATIO = 0.75            # Lowe ratio test on the two nearest descriptors
 RANSAC_PX = 3.0         # reprojection tolerance, in work-size pixels
 MIN_INLIERS = 12
-REGION_MARGIN = 0.5     # the reference features come from the neck quad grown by this fraction of its size
+REGION_MARGIN = 0.5     # the reference features come from the neck quad grown by this fraction of its length (headstock, body)
+REGION_ACROSS = 0.5     # ... and by this fraction of its width on each side (less keeps the background out)
 MIN_AREA, MAX_AREA = 0.3, 3.0   # accepted area of the found quad relative to the reference one
 ASPECT_RANGE = (0.75, 1.33)     # accepted length/width relative to the reference's
 TAPER_RANGE = (0.6, 1.6)
 SIDES_RANGE = (0.7, 1.43)       # top edge / bottom edge
 MAX_SKEW_COS = 0.57             # |cos| of the angle between the nut and the neck axis (55 degrees from square)
+MATCH_EVERY = 3         # the reference is matched every this many frames while tracking (the flow covers the rest)
+SEARCH_MARGIN = 0.4     # while tracking, only look for the reference near the followed position (grown by this much)
+FULL_SEARCH_EVERY = 6   # ... except every this many matches, which look at the whole frame so a wrong lock can be corrected
 HOLD_FRAMES = 8         # a neck that cannot be found keeps its last position this many frames
 FLOW_POINTS = 300       # corner points followed from one frame to the next (optical flow)
 FLOW_RANSAC_PX = 2.0
@@ -53,13 +58,24 @@ def _shape(quad):
     return (top + bottom) / (nut + far), far / nut, top / bottom, cos
 
 
-def quad_region_mask(shape, corners, margin=REGION_MARGIN):
-    """Mask (255 inside) of the quad grown by `margin` of its size around its center."""
+def quad_region_mask(shape, corners, margin=REGION_MARGIN, across=None):
+    """
+    Mask (255 inside) of the quad grown by `margin` of its length along the neck on both ends and by `across`
+    (default: the same fraction) of its width on both sides, so the headstock and the body are included while
+    the background beside the neck can be left out.
+    """
     corners = np.asarray(corners, dtype=np.float32)
+    across = margin if across is None else across
+    tl, tr, br, bl = corners
+    along_vec = ((bl - tl) + (br - tr)) / 2          # nut -> fret 12
+    across_vec = ((tr - tl) + (br - bl)) / 2         # low E side -> high e side
     center = corners.mean(axis=0)
-    grown = center + (corners - center) * (1 + 2 * margin)
+    half_long = along_vec / 2 * (1 + 2 * margin)
+    half_wide = across_vec / 2 * (1 + 2 * across)
+    grown = np.array([center - half_long - half_wide, center - half_long + half_wide,
+                      center + half_long + half_wide, center + half_long - half_wide], np.float32)
     mask = np.zeros(shape[:2], np.uint8)
-    cv2.fillConvexPoly(mask, cv2.convexHull(grown.astype(np.int32)), 255)
+    cv2.fillConvexPoly(mask, grown.astype(np.int32), 255)
     return mask
 
 
@@ -86,13 +102,13 @@ class MarklessTracker:
 
     def __init__(self, reference):
         self.reference = reference
-        self._orb = cv2.ORB_create(N_FEATURES)
+        self._orb = cv2.ORB_create(N_FEATURES, fastThreshold=FAST_THRESHOLD)
         self._matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
         height, width = reference.image.shape[:2]
         self._scale = WORK_WIDTH / width
         small = cv2.resize(_gray(reference.image), None, fx=self._scale, fy=self._scale, interpolation=cv2.INTER_AREA)
         self._ref_corners = reference.corners * self._scale
-        mask = quad_region_mask(small.shape, self._ref_corners)
+        mask = quad_region_mask(small.shape, self._ref_corners, REGION_MARGIN, REGION_ACROSS)
         if reference.ignore_mask is not None:
             blocked = cv2.resize(reference.ignore_mask, (small.shape[1], small.shape[0]), interpolation=cv2.INTER_NEAREST)
             mask[blocked > 0] = 0
@@ -106,7 +122,10 @@ class MarklessTracker:
         self._prev_small = None     # previous frame (work size, gray) for the optical flow
         self._disagree = 0
         self._missed = 0
+        self._frame_index = 0
+        self._matches_done = 0
         self.inliers = 0       # inliers of the last successful match, for debugging
+        self.last_matched = self.last_followed = None
         self.fresh_corners = {}  # kept for the recorder; this tracker has no per-frame ground truth
 
     # --- estimation ---------------------------------------------------------------------------------------
@@ -200,8 +219,19 @@ class MarklessTracker:
         lost keeps its last position for HOLD_FRAMES frames.
         """
         small, mask = self._work_image(frame, allowed_mask)
-        matched, self.inliers = self._match_reference(small, mask)
+        due = (self._corners is None or self._disagree > 0 or self._missed > 0
+               or self._frame_index % MATCH_EVERY == 0)
+        matched = None
+        if due:
+            search = mask
+            self._matches_done += 1
+            if self._corners is not None and self._matches_done % FULL_SEARCH_EVERY != 0:
+                near = quad_region_mask(small.shape, self._corners, SEARCH_MARGIN, SEARCH_MARGIN)
+                search = near if mask is None else cv2.bitwise_and(near, mask)
+            matched, self.inliers = self._match_reference(small, search)
+        self._frame_index += 1
         followed = self._follow(small, mask)
+        self.last_matched, self.last_followed = matched, followed   # for diagnostics
 
         if matched is not None and followed is not None:
             size = float(np.linalg.norm(self._ref_corners[0] - self._ref_corners[2]))
