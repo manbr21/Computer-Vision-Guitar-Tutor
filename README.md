@@ -93,6 +93,11 @@ python -m chordar.reference --out references/mine.npz     # SPACE takes the phot
 python -m chordar --reference references/mine.npz
 ```
 
+The photo screen draws the target neck of the calibration: put the guitar inside the outline, with your hand off the
+neck. A photo taken at that distance makes the fingers project more precisely, so after the four clicks the tool runs
+the calibration checks (distance, position, level, camera angle) and says, for example, "Move the guitar closer to
+the camera" (T takes a new photo, ENTER twice saves anyway).
+
 The corners to click, in order, as the neck looks on the (mirrored) screen: the nut at the low E string (top), the
 nut at the high e string (bottom), fret 12 at the high e string (bottom), fret 12 at the low E string (top); they are
 the points the markers' corners mark. The tracker matches ORB features of the photo's neck region to each frame and

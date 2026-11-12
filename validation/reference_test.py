@@ -12,7 +12,9 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chordar.markerless import MarklessTracker, NeckReference
-from chordar.reference import reference_from_clicks
+from chordar.calibration import ghost_point
+from chordar.placement import IDEAL_CENTER
+from chordar.reference import photo_hint, reference_from_clicks
 
 W, H = 1280, 720
 TRUE_DISPLAY = [(300, 300), (300, 420), (1000, 430), (1000, 300)]  # the neck as the mirrored view shows it
@@ -107,6 +109,14 @@ def main():
     sheared = ref + np.array([[0, 0], [0, 0], [0, 0], [0, 0]], np.float32)
     sheared[2:, 1] += np.linalg.norm(tl - bl)  # the far edge slides sideways by the neck length: 45 degrees off square
     check("a sheared neck is refused", not tracker._plausible(work(sheared)))
+
+    # advice on the reference photo: the same checks as the calibration, on the clicked corners
+    ideal = [ghost_point(u, t, (W, H)) for u, t in ((0, 0), (1, 0), (1, 1), (0, 1))]
+    cx, cy = IDEAL_CENTER[0] * W, IDEAL_CENTER[1] * H
+    check("a photo with the neck on the calibration target gets no advice", photo_hint(ideal, (W, H)) is None)
+    far = [(cx + (x - cx) * 0.64, cy + (y - cy) * 0.64) for x, y in ideal]
+    check(f"a neck at 64% of the target size is told to come closer ({photo_hint(far, (W, H))})",
+          photo_hint(far, (W, H)) == "Move the guitar closer to the camera")
 
     blank = np.full((H, W, 3), 120, np.uint8)
     got, _ = tracker.estimate(blank)
