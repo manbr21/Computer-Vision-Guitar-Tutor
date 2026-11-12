@@ -93,6 +93,21 @@ def main():
           np.median(errors) < 3 and max(errors) < 8)
     check(f"... and the corners are steady: the step error is {np.median(steps):.2f} px per frame", np.median(steps) < 1.0)
 
+    # shape check: a stretched or sheared neck is a bad homography and must be refused
+    ref = np.array(expected_raw, np.float32)
+    tl, tr, br, bl = ref  # raw corners (mirrored layout: the nut is on the right of the raw frame)
+
+    def stretched(k):  # move the fret-12 corners away from the nut by factor k along the neck
+        return np.array([tl, tr, tl + (bl - tl) * k, tr + (br - tr) * k], np.float32)[[0, 1, 3, 2]]
+
+    work = lambda q: q * tracker._scale  # _plausible works at the matching size
+    check("the reference shape itself is plausible", tracker._plausible(work(ref)))
+    check("a neck 10% longer is plausible", tracker._plausible(work(stretched(1.1))))
+    check("a neck twice as long is refused", not tracker._plausible(work(stretched(2.0))))
+    sheared = ref + np.array([[0, 0], [0, 0], [0, 0], [0, 0]], np.float32)
+    sheared[2:, 1] += np.linalg.norm(tl - bl)  # the far edge slides sideways by the neck length: 45 degrees off square
+    check("a sheared neck is refused", not tracker._plausible(work(sheared)))
+
     blank = np.full((H, W, 3), 120, np.uint8)
     got, _ = tracker.estimate(blank)
     check("a frame without the neck gives no corners", got is None)

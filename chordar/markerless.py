@@ -20,6 +20,10 @@ RANSAC_PX = 3.0         # reprojection tolerance, in work-size pixels
 MIN_INLIERS = 12
 REGION_MARGIN = 0.5     # the reference features come from the neck quad grown by this fraction of its size
 MIN_AREA, MAX_AREA = 0.3, 3.0   # accepted area of the found quad relative to the reference one
+ASPECT_RANGE = (0.75, 1.33)     # accepted length/width relative to the reference's
+TAPER_RANGE = (0.6, 1.6)
+SIDES_RANGE = (0.7, 1.43)       # top edge / bottom edge
+MAX_SKEW_COS = 0.57             # |cos| of the angle between the nut and the neck axis (55 degrees from square)
 HOLD_FRAMES = 8         # a neck that cannot be found keeps its last position this many frames
 FLOW_POINTS = 300       # corner points followed from one frame to the next (optical flow)
 FLOW_RANSAC_PX = 2.0
@@ -35,6 +39,18 @@ HARD_REANCHOR = 2.0     # ... but a gap this many times the agreement tolerance 
 
 def _gray(image):
     return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+
+
+def _shape(quad):
+    """(length/width, far width/nut width, top edge/bottom edge, |cos| of the nut against the neck axis) of a quad."""
+    tl, tr, br, bl = quad
+    nut, far = np.linalg.norm(tr - tl), np.linalg.norm(br - bl)
+    top, bottom = np.linalg.norm(bl - tl), np.linalg.norm(br - tr)
+    if min(nut, far, top, bottom) < 1e-3:
+        return None
+    axis = (bl - tl) + (br - tr)
+    cos = abs(float(np.dot(tr - tl, axis)) / (nut * np.linalg.norm(axis) + 1e-9))
+    return (top + bottom) / (nut + far), far / nut, top / bottom, cos
 
 
 def quad_region_mask(shape, corners, margin=REGION_MARGIN):
@@ -85,6 +101,7 @@ class MarklessTracker:
             raise ValueError("The reference photo has too few features in the neck region: use a sharper, closer photo")
         self._ref_points = np.float32([k.pt for k in keypoints])
         self._ref_area = abs(cv2.contourArea(self._ref_corners.astype(np.float32)))
+        self._ref_shape = _shape(self._ref_corners.astype(np.float32))
         self._corners = None        # current position of the neck corners (work-size pixels)
         self._prev_small = None     # previous frame (work size, gray) for the optical flow
         self._disagree = 0
@@ -152,12 +169,26 @@ class MarklessTracker:
         return (None if found is None else found / self._scale), inliers
 
     def _plausible(self, quad):
-        """A convex quad of a sensible size; anything else is a bad homography."""
+        """
+        A convex quad of a sensible size and shape: the proportions of the reference (length against width,
+        taper, parallel sides, a nut that is square to the neck). A homography fitted to a few wrong matches
+        usually stretches or shears the neck, and this rejects it.
+        """
         quad = quad.astype(np.float32)
         if not cv2.isContourConvex(quad.reshape(-1, 1, 2)):
             return False
         area = abs(cv2.contourArea(quad))
-        return MIN_AREA * self._ref_area <= area <= MAX_AREA * self._ref_area
+        if not MIN_AREA * self._ref_area <= area <= MAX_AREA * self._ref_area:
+            return False
+        shape = _shape(quad)
+        if shape is None:
+            return False
+        aspect, taper, sides, squareness = shape
+        ref_aspect, ref_taper, _, _ = self._ref_shape
+        return (ASPECT_RANGE[0] <= aspect / ref_aspect <= ASPECT_RANGE[1]
+                and TAPER_RANGE[0] <= taper / ref_taper <= TAPER_RANGE[1]
+                and SIDES_RANGE[0] <= sides <= SIDES_RANGE[1]
+                and squareness <= MAX_SKEW_COS)
 
     # --- tracker interface ----------------------------------------------------------------------------------
 
