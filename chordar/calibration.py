@@ -8,8 +8,8 @@ from chordar import config
 from chordar.geometry import FRET_BOUNDS, outline_u_range, string_u
 from chordar.overlay import draw_neck, put_text_bg
 from chordar.window import show
-from chordar.placement import (IDEAL_CENTER, alignment_metrics, evaluate, lighting_check, pixels_per_mm,
-                               set_reference_center, smooth)
+from chordar.placement import (IDEAL_CENTER, MIN_STRING_GAP, alignment_metrics, evaluate, lighting_check, pixels_per_mm,
+                               set_reference_center, set_reference_distance, smooth)
 
 STABLE_FRAMES_REQUIRED = 20  # ~a second of good, uninterrupted framing before auto-advancing
 
@@ -132,7 +132,7 @@ def run_calibration(capture, markers, hands, window):
         stable_frames = stable_frames + 1 if ready else 0
         put_text_bg(display, f"Stable: {min(stable_frames, STABLE_FRAMES_REQUIRED)}/{STABLE_FRAMES_REQUIRED}",
                     (20, 95), 0.6, (255, 255, 255), thickness=1)
-        put_text_bg(display, "ENTER: use this position as my reference, ESC: quit", (20, display.shape[0] - 20),
+        put_text_bg(display, "ENTER: use this position and distance as my reference, ESC: quit", (20, display.shape[0] - 20),
                     0.5, (255, 255, 255), thickness=1)
         show(window, display)
 
@@ -140,7 +140,10 @@ def run_calibration(capture, markers, hands, window):
         if key == 27:    # ESC
             return False
         if key == 13 and found:  # ENTER: keep the guitar where it is and make that the reference
-            set_reference_center(found[0], (display.shape[1], display.shape[0]))
+            size = (display.shape[1], display.shape[0])
+            set_reference_center(found[0], size)
+            if found[0].string_gap_px() >= MIN_STRING_GAP:  # a comfortable distance is kept if the strings are still apart
+                set_reference_distance(found[0], size)
             return True
         if key == 13 or stable_frames >= STABLE_FRAMES_REQUIRED:
             return True

@@ -94,9 +94,17 @@ python -m chordar --reference references/mine.npz
 ```
 
 The photo screen draws the target neck of the calibration: put the guitar inside the outline, with your hand off the
-neck. A photo taken at that distance makes the fingers project more precisely, so after the four clicks the tool runs
-the calibration checks (distance, position, level, camera angle) and says, for example, "Move the guitar closer to
-the camera" (T takes a new photo, ENTER twice saves anyway).
+neck. The closer the guitar is, the more precisely the fingers project, but a comfortable playing distance is kept: after the
+four clicks the tool only warns about position, level, camera angle, or a neck too small to tell the strings apart
+(T takes a new photo, ENTER twice saves anyway). In the calibration, ENTER now also takes your current distance as the
+reference one.
+
+Where to click matters, because the drawn frets are computed from two lines: the nut and the 12th fret wire. Click where
+the strings leave the nut toward the fretboard (the edge of the nut bar on the fretboard side, not the headstock side),
+and on the 12th fret wire itself. The tool then looks for the real fret wires in the photo and snaps your clicks onto
+them (nut position and neck length are fitted to the fret formula), so a few pixels of error do not shift the grid; it
+draws the result and `U` switches back to your raw clicks. To snap an existing reference without taking a new photo:
+`python -m chordar.reference --snap references/old.npz --out references/new.npz`.
 
 The corners to click, in order, as the neck looks on the (mirrored) screen: the nut at the low E string (top), the
 nut at the high e string (bottom), fret 12 at the high e string (bottom), fret 12 at the low E string (top); they are
@@ -129,6 +137,7 @@ chordar/
   coaching.py     which notes are done and the one correction to say
   markerless.py   marker-free neck tracking from a reference photo
   reference.py    tool to make that reference (photo + four clicks)
+  frets.py        snaps the clicked corners to the real fret wires of the photo
   recorder.py     records a session (raw video + ground-truth corners)
   window.py       resizable display window, image scaled without stretching
   chords.py       chord library
@@ -152,6 +161,7 @@ python validation/calibration_alignment_test.py  # placement metrics, hints and 
 python validation/app_smoke_test.py              # ArUco markers drawn on a synthetic frame, end to end
 python validation/capo_test.py                   # virtual capo: shifted notes, score, keys and drawing
 python validation/recorder_test.py                # the session recorder
+python validation/frets_test.py                    # fret-wire snapping on a synthetic tapered neck
 python validation/reference_test.py               # marker-free tracker on a synthetic textured scene
 python validation/coaching_test.py                # finger coaching messages
 python validation/lighting_test.py                # lighting advice in the calibration

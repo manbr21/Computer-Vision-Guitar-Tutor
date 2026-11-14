@@ -36,6 +36,16 @@ def neck_center_fraction(neck, image_size):
     return float(center[0] / width), float(center[1] / height)
 
 
+def set_reference_distance(neck, image_size):
+    """Makes the current size of the neck the reference one, for a user who plays at a comfortable, longer distance."""
+    global IDEAL_DISTANCE_MM
+    width = image_size[0]
+    focal = (width / 2) / math.tan(math.radians(config.CAMERA_HFOV_DEG) / 2)
+    nut, far = np.array(neck.to_image(0.5, 0.0), dtype=float), np.array(neck.to_image(0.5, 1.0), dtype=float)
+    length_px = float(np.linalg.norm(far - nut))
+    IDEAL_DISTANCE_MM = focal * config.NECK_LENGTH_MM / length_px
+
+
 def set_reference_center(neck, image_size):
     """Makes the current position of the neck the reference one (the user's natural way of holding the guitar)."""
     IDEAL_CENTER[:] = neck_center_fraction(neck, image_size)

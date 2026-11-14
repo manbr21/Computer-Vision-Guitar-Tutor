@@ -15,8 +15,10 @@ import numpy as np
 from chordar import config
 from chordar.calibration import draw_ghost
 from chordar.geometry import Fretboard
+from chordar.frets import snap_corners
 from chordar.markerless import MarklessTracker, NeckReference
-from chordar.placement import alignment_metrics, evaluate
+from chordar.overlay import draw_neck
+from chordar.placement import MIN_STRING_GAP, alignment_metrics, evaluate
 
 WINDOW = "ChordAR reference"
 _EDGE = "string" if config.MARKER_PLACEMENT == "outer_strings" else "edge of the fretboard"
@@ -37,11 +39,14 @@ def reference_from_clicks(frame, clicks):
 def photo_hint(clicks, size):
     """
     Advice on how good the reference photo is, from the four clicked corners (on the mirrored view) and the image
-    size: the first calibration check that fails (distance, position, level, camera angle), or None if all pass.
-    A reference taken at the calibration distance makes the fingers project more precisely.
+    size: the first calibration check that fails (position, level, camera angle), or None if all pass. The distance
+    is only questioned when the neck is too small to tell the strings apart (or implausibly large): a comfortable
+    playing distance is kept, though the fingers project more precisely the closer the guitar is.
     """
     neck = Fretboard(*[tuple(map(float, c)) for c in clicks], image_size=size)
-    return next((c["hint"] for c in evaluate(alignment_metrics(neck, size)) if not c["ok"]), None)
+    metrics = alignment_metrics(neck, size)
+    distance_matters = metrics["string_gap"] < MIN_STRING_GAP or not 0.55 <= metrics["scale"] <= 1.6
+    return next((c["hint"] for c in evaluate(metrics) if not c["ok"] and (distance_matters or c["label"] != "Distance")), None)
 
 
 def _text(img, text, y, color=(255, 255, 255)):
@@ -72,6 +77,8 @@ def click_corners(frame):
     view = cv2.flip(frame, 1)
     clicks = []
     warned = False
+    snapped = None     # (corners, info) once four clicks are made
+    use_snap = True
 
     def on_mouse(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN and len(clicks) < 4:
@@ -83,9 +90,21 @@ def click_corners(frame):
         for i, (x, y) in enumerate(clicks):
             cv2.circle(shown, (x, y), 6, (0, 0, 255), -1)
             cv2.putText(shown, str(i + 1), (x + 8, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-        hint = photo_hint(clicks, (view.shape[1], view.shape[0])) if len(clicks) == 4 else None
+        chosen, hint = clicks, None
         if len(clicks) == 4:
-            cv2.polylines(shown, [np.array(clicks, np.int32)], True, (0, 255, 0) if hint is None else (0, 165, 255), 2)
+            if snapped is None:
+                snapped = snap_corners(view, np.array(clicks, np.float32))
+            if use_snap and snapped[1] is not None:
+                chosen = [tuple(map(float, c)) for c in snapped[0]]
+            hint = photo_hint(chosen, (view.shape[1], view.shape[0]))
+            draw_neck(shown, Fretboard(*[tuple(map(float, c)) for c in chosen]))
+            info = snapped[1]
+            if info is None:
+                _text(shown, "No fret wires found: using your clicks as they are", 94, (0, 165, 255))
+            elif use_snap:
+                _text(shown, f"Frets snapped to the real wires (nut moved {info['nut_shift_px']:+.0f} px). U: use my clicks", 94, (255, 255, 0))
+            else:
+                _text(shown, "Using your clicks. U: snap to the real fret wires", 94, (255, 255, 0))
             if hint is None:
                 _text(shown, "Good photo. ENTER: save, R: click again, T: new photo, ESC: cancel", 30, (0, 255, 0))
             elif warned:
@@ -102,11 +121,14 @@ def click_corners(frame):
         if key in (ord("r"), ord("R")):
             clicks.clear()
             warned = False
+            snapped = None
+        if key in (ord("u"), ord("U")):
+            use_snap = not use_snap
         if key in (ord("t"), ord("T")):
             return "retake"
         if key == 13 and len(clicks) == 4:
             if hint is None or warned:
-                return clicks
+                return chosen
             warned = True
         elif key == 13:
             warned = False
@@ -115,10 +137,20 @@ def click_corners(frame):
 def main():
     parser = argparse.ArgumentParser(prog="chordar.reference", description="Make the reference photo for marker-free tracking.")
     parser.add_argument("--out", required=True, help="where to save the reference (.npz)")
+    parser.add_argument("--snap", metavar="FILE", help="do not take a photo: snap the corners of an existing reference to its fret wires")
     parser.add_argument("--image", help="use this photo instead of the camera")
     parser.add_argument("--camera", type=int, default=0)
     args = parser.parse_args()
 
+    if args.snap:
+        reference = NeckReference.load(args.snap)
+        corners, info = snap_corners(reference.image, reference.corners)
+        if info is None:
+            sys.exit("No fret wires found in that photo; the reference is unchanged")
+        NeckReference(reference.image, corners, reference.ignore_mask).save(args.out)
+        print(f"Saved {args.out}: nut moved {info['nut_shift_px']:+.1f} px along the neck, length {info['length_change']:+.1%}, "
+              f"{info['matched']} of 12 frets matched to wires")
+        return
     if args.image:
         frame = cv2.imread(args.image)
         if frame is None:
