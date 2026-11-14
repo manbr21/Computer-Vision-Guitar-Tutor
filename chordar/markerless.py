@@ -39,6 +39,8 @@ FLOW_POINTS = 300       # corner points followed from one frame to the next (opt
 FLOW_RANSAC_PX = 2.0
 FLOW_MIN_INLIERS = 10
 FLOW_REGION_MARGIN = 0.2
+MAX_STEP_FRACTION = 0.12   # the neck cannot move more than this fraction of its length between two frames
+MAX_STEP_SCALE = 1.12      # ... nor change its length by more than this factor
 REF_WEIGHT = 0.07       # how much of each new reference match is blended into the followed position
 AGREE_FRACTION = 0.04   # reference and flow agree if the corners are within this fraction of the neck size
 REANCHOR_INLIERS = 25   # a reference match this strong replaces the followed position when they disagree
@@ -190,7 +192,14 @@ class MarklessTracker:
         if homography is None or int(inlier_mask.sum()) < FLOW_MIN_INLIERS:
             return None
         moved_corners = cv2.perspectiveTransform(self._corners.reshape(-1, 1, 2).astype(np.float32), homography).reshape(4, 2)
-        return moved_corners if self._plausible(moved_corners) else None
+        return moved_corners if self._plausible(moved_corners) and self._possible_motion(moved_corners) else None
+
+    def _possible_motion(self, moved):
+        """A single frame cannot move or rescale the neck by much: a bigger jump is a flow fitted to the wrong points."""
+        before, length = self._corners, float(np.linalg.norm(((self._corners[3] - self._corners[0]) + (self._corners[2] - self._corners[1])) / 2))
+        after = float(np.linalg.norm(((moved[3] - moved[0]) + (moved[2] - moved[1])) / 2))
+        shift = float(np.linalg.norm(moved.mean(axis=0) - before.mean(axis=0)))
+        return shift <= MAX_STEP_FRACTION * length and 1 / MAX_STEP_SCALE <= after / length <= MAX_STEP_SCALE
 
     def estimate(self, frame, allowed_mask=None):
         """
