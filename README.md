@@ -15,7 +15,10 @@ It is a fork of [Chordially / Computer-Vision-Guitar-Tutor](https://github.com/n
   neighbouring string. The camera pose is estimated from the markers and the fingertip is shifted to the board point under it.
 - **Guided calibration:** a target neck is drawn on the video; distance, horizontal and vertical position,
   level and camera angle are checked with a hint for each. During play, a warning appears if the guitar drifts.
-- **Scoring and coaching:** percentage of the chord's fretted notes covered (right string *and* fret), shown as a ring;
+- **Scoring and coaching:** percentage of the chord's fretted notes covered, shown as a ring. A finger covers a note if its
+  touch point is on the string (within 0.65 string gaps) and in the fret space or just behind its wire, one finger per
+  note; the touch point is the fingertip landmark moved 40% toward the last joint, because the pad that presses is behind
+  the tip (these three constants in `config.py` were fitted to one recording, see Known limitations);
   notes turn green when covered, and one message says what to fix first ("Finger 2: 1 string up, 1 fret left"),
   with an arrow from the fingertip to its note.
 - **Eight chords** (A, Am, C, D, Dm, E, Em, G) with a chord chart on screen.
@@ -164,6 +167,7 @@ python validation/capo_test.py                   # virtual capo: shifted notes, 
 python validation/recorder_test.py                # the session recorder
 python validation/frets_test.py                    # fret-wire snapping on a synthetic tapered neck
 python validation/reference_test.py               # marker-free tracker on a synthetic textured scene
+python validation/scoring_test.py                 # scoring tolerances, one finger per note
 python validation/coaching_test.py                # finger coaching messages
 python validation/lighting_test.py                # lighting advice in the calibration
 python validation/audio_test.py                  # strum detector on synthetic sound, and its use by the app
@@ -173,6 +177,10 @@ In the simulation, without the parallax correction the right string drops to ~70
 at 30 deg; with it, it stays at ~100%.
 
 ## Known limitations
+
+- The finger constants (`CONTACT_BACK`, `STRING_TOLERANCE`, `FRET_BEHIND`) were fitted to one user playing C, Am, E and G
+  at one distance: with them the held chord scored 94% on average (65% with the raw fingertip landmark and exact
+  string and fret), while the other chords stayed at 32% (they share notes). They need checking on other people and chords.
 
 - Markers must be rigid and flat on the instrument; a loosely taped marker shakes the whole grid.
 - A dark patch is occasionally read as a marker ID 0-3, briefly flickering a phantom neck (a filter is planned).

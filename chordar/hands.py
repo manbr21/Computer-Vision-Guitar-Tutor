@@ -1,4 +1,4 @@
-"""Fretting-hand tracking with MediaPipe Hands: smoothed fingertip pixels."""
+"""Fretting-hand tracking with MediaPipe Hands: smoothed touch points of the fingers."""
 import math
 from collections import deque
 
@@ -9,6 +9,7 @@ import numpy as np
 from chordar import config
 
 FINGER_TIPS = {"index": 8, "middle": 12, "ring": 16, "pinky": 20}  # MediaPipe landmark ids
+FINGER_DIPS = {"index": 7, "middle": 11, "ring": 15, "pinky": 19}   # the last joint of each finger
 SMOOTH_FRAMES = 5
 JUMP_PX = 200  # a position farther than this from the smoothed one restarts the smoothing
 
@@ -45,8 +46,8 @@ class FingertipTracker:
             return {}
 
         height, width = mirrored.shape[:2]
-        hands = [{name: (int(hand.landmark[i].x * width), int(hand.landmark[i].y * height))
-                  for name, i in FINGER_TIPS.items()} for hand in results.multi_hand_landmarks]
+        hands = [{name: self._touch_point(hand, name, width, height) for name in FINGER_TIPS}
+                 for hand in results.multi_hand_landmarks]
         if anchor is not None and len(hands) > 1:
             hands.sort(key=lambda tips: math.dist(_mean_point(list(tips.values())), anchor))
         raw = hands[0]
@@ -60,6 +61,17 @@ class FingertipTracker:
             self._history[name].append(point)
             tips[name] = tuple(int(v) for v in np.mean(self._history[name], axis=0))
         return tips
+
+    @staticmethod
+    def _touch_point(hand, name, width, height):
+        """
+        Where the finger presses: the pad is behind the fingertip landmark, so the point is moved from the tip toward
+        the last joint by config.CONTACT_BACK of the way (the tip alone read about one string off for the index).
+        """
+        tip, joint = hand.landmark[FINGER_TIPS[name]], hand.landmark[FINGER_DIPS[name]]
+        x = tip.x + config.CONTACT_BACK * (joint.x - tip.x)
+        y = tip.y + config.CONTACT_BACK * (joint.y - tip.y)
+        return (int(x * width), int(y * height))
 
     def _reset(self):
         for history in self._history.values():

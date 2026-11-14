@@ -4,6 +4,7 @@ from typing import Optional
 
 from chordar.chords import STRING_NAMES
 from chordar.config import NUM_STRINGS
+from chordar.scoring import covered_notes
 
 FINGER_NAMES = {1: "index", 2: "middle", 3: "ring", 4: "pinky"}  # chord-library finger number -> tracker name
 
@@ -37,8 +38,7 @@ def coach(notes, fingertips, neck, parallax=True):
     that is not where it should be. Screen directions are used: the nut is on the left and the low E on top.
     """
     located = {name: neck.locate(x, y, parallax) for name, (x, y) in fingertips.items()}
-    covered = set(located.values())
-    done = [(s, f) in covered for s, f, _ in notes]
+    done = covered_notes(notes, fingertips, neck, parallax)
     if not notes:
         return Coaching(done, "Open strings: just strum", perfect=True)
     if all(done):
