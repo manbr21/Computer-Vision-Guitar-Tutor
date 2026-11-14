@@ -23,24 +23,24 @@ MIN_MATCHED = 7         # frets that must be matched for the fit to be trusted
 N_FRETS = 12
 
 
-def straighten(image, corners):
+def straighten(image, corners, rows=None):
     """
-    The neck as a rectangle: x along the neck (t from -AXIS_MARGIN to 1 + AXIS_MARGIN), y across (u from 0 to 1).
-    Bilinear between the corners, like the fretboard model: a homography would read the taper of the neck as
-    perspective and stretch the positions along it.
+    The neck as a rectangle: x along the neck (t from -AXIS_MARGIN to 1 + AXIS_MARGIN), y across (u from 0 to 1;
+    only u in `rows`, default the whole width). Bilinear between the corners, like the fretboard model: a homography
+    would read the taper of the neck as perspective and stretch the positions along it.
     """
     tl, tr, br, bl = (np.asarray(c, np.float32) for c in corners)
+    lo, hi = rows if rows is not None else (0.0, 1.0)
     t = np.linspace(-AXIS_MARGIN, 1 + AXIS_MARGIN, AXIS_SAMPLES, dtype=np.float32)[None, :, None]
-    u = np.linspace(0, 1, ACROSS_SAMPLES, dtype=np.float32)[:, None, None]
+    u = np.linspace(lo, hi, max(int((hi - lo) * ACROSS_SAMPLES), 2), dtype=np.float32)[:, None, None]
     points = (1 - t) * ((1 - u) * tl + u * tr) + t * ((1 - u) * bl + u * br)
-    return cv2.remap(image, points[..., 0], points[..., 1], cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    return cv2.remap(image, points[..., 0], points[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
 
 def wire_profile(image, corners):
     """Brightness of the thin lines across the neck along it: (t positions, profile with the local level removed)."""
-    flat = straighten(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image, corners).astype(np.float32)
-    rows = flat[int(ACROSS_RANGE[0] * ACROSS_SAMPLES):int(ACROSS_RANGE[1] * ACROSS_SAMPLES)]
-    profile = rows.mean(axis=0)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+    profile = straighten(gray, corners, ACROSS_RANGE).astype(np.float32).mean(axis=0)
     window = max(int(0.03 * AXIS_SAMPLES / (1 + 2 * AXIS_MARGIN)), 5) | 1
     profile = np.convolve(profile, np.ones(3) / 3, mode="same") - np.convolve(profile, np.ones(window) / window, mode="same")
     t = np.linspace(-AXIS_MARGIN, 1 + AXIS_MARGIN, AXIS_SAMPLES)
@@ -48,18 +48,19 @@ def wire_profile(image, corners):
 
 
 def find_wires(t, profile, min_height=4.0):
-    """t positions of the bright thin lines (local maxima above min_height)."""
-    peaks = [i for i in range(2, len(profile) - 2)
-             if profile[i] >= profile[i - 1] and profile[i] > profile[i + 1] and profile[i] >= min_height
-             and profile[i] >= profile[i - 2] and profile[i] >= profile[i + 2]]
+    """t positions of the bright thin lines (local maxima above min_height, at least 1.5% of the neck apart)."""
+    p = profile
+    is_peak = np.zeros(len(p), bool)
+    is_peak[2:-2] = ((p[2:-2] >= p[1:-3]) & (p[2:-2] > p[3:-1]) & (p[2:-2] >= p[:-4]) & (p[2:-2] >= p[4:])
+                     & (p[2:-2] >= min_height))
     kept = []
-    for i in sorted(peaks, key=lambda p: -profile[p]):   # strongest first, drop neighbors closer than 1.5% of the length
+    for i in sorted(np.flatnonzero(is_peak), key=lambda k: -p[k]):   # strongest first
         if all(abs(t[i] - t[j]) > 0.015 for j in kept):
             kept.append(i)
     return np.array(sorted(t[i] for i in kept))
 
 
-def fit_frets(wires):
+def fit_frets(wires, init=None):
     """
     Fits wire positions to t_n = (t0 + s b_n) / (1 + k b_n), b_n = FRET_BOUNDS[n] (n = 1..12): the equal-temperament
     positions seen with a one-dimensional perspective (k, the foreshortening along the neck when the camera is not
@@ -68,16 +69,19 @@ def fit_frets(wires):
     if len(wires) < MIN_MATCHED:
         return None
     bounds = np.array(FRET_BOUNDS[1:N_FRETS + 1])
-    best = None
-    for t0 in np.arange(-MAX_NUT_SHIFT, MAX_NUT_SHIFT + 1e-9, 0.002):   # coarse search without perspective
-        for s in np.arange(1 - MAX_LENGTH_CHANGE, 1 + MAX_LENGTH_CHANGE + 1e-9, 0.004):
-            predicted = t0 + s * bounds
-            gaps = np.abs(wires[None, :] - predicted[:, None]).min(axis=1)
-            score = np.sum(np.clip(1 - gaps / TOLERANCE, 0, 1))
-            if best is None or score > best[0]:
-                best = (score, t0, s)
-    _, t0, s = best
-    k = 0.0
+    if init is not None:   # a good starting point (the previous frame's fit): no search needed
+        t0, s, k = init
+    else:
+        best = None
+        for t0 in np.arange(-MAX_NUT_SHIFT, MAX_NUT_SHIFT + 1e-9, 0.002):   # coarse search without perspective
+            for s in np.arange(1 - MAX_LENGTH_CHANGE, 1 + MAX_LENGTH_CHANGE + 1e-9, 0.004):
+                predicted = t0 + s * bounds
+                gaps = np.abs(wires[None, :] - predicted[:, None]).min(axis=1)
+                score = np.sum(np.clip(1 - gaps / TOLERANCE, 0, 1))
+                if best is None or score > best[0]:
+                    best = (score, t0, s)
+        _, t0, s = best
+        k = 0.0
     for _ in range(4):  # least squares on the wires matched to each fret; t_n (1 + k b_n) = t0 + s b_n is linear in (t0, s, k)
         predicted = (t0 + s * bounds) / (1 + k * bounds)
         nearest = np.array([wires[np.argmin(np.abs(wires - p))] for p in predicted])
@@ -91,11 +95,13 @@ def fit_frets(wires):
     ok = np.abs(nearest - predicted) < 1.5 * TOLERANCE
     if ok.sum() < MIN_MATCHED or not -MAX_PERSPECTIVE <= k <= MAX_PERSPECTIVE:
         return None
+    if abs(t0) > 1.2 * MAX_NUT_SHIFT or abs(s - 1) > 1.2 * MAX_LENGTH_CHANGE:   # a fit that slipped a whole fret
+        return None
     rms = float(np.sqrt(np.mean((nearest[ok] - predicted[ok]) ** 2)))
     return float(t0), float(s), float(k), int(ok.sum()), rms
 
 
-def snap_corners(image, corners):
+def snap_corners(image, corners, init=None):
     """
     The corners moved along the neck so that the nut and the 12th fret sit on the fitted wires, and what was found.
     Returns (corners, info) with info None when the wires were not found (corners unchanged). info has nut_shift_px,
@@ -104,7 +110,7 @@ def snap_corners(image, corners):
     """
     corners = np.asarray(corners, np.float32)
     t, profile = wire_profile(image, corners)
-    fit = fit_frets(find_wires(t, profile))
+    fit = fit_frets(find_wires(t, profile), init)
     if fit is None:
         return corners, None
     t0, s, k, matched, rms = fit
@@ -118,4 +124,5 @@ def snap_corners(image, corners):
     bounds = (wire_t - t_nut) / (t_12 - t_nut)
     sane = bool(np.all(np.diff(bounds) > 0.02))
     return snapped, {"nut_shift_px": float(t_nut * length), "length_change": float(t_12 - t_nut - 1), "matched": matched,
-                     "rms_px": rms * length, "perspective": k, "fret_bounds": bounds.tolist() if sane else None}
+                     "rms_px": rms * length, "perspective": k, "fret_bounds": bounds.tolist() if sane else None,
+                     "params": (t0, s, k)}

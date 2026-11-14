@@ -9,6 +9,7 @@ import logging
 import cv2
 import numpy as np
 
+from chordar.frets import snap_corners
 from chordar.geometry import Fretboard
 
 log = logging.getLogger(__name__)
@@ -29,6 +30,10 @@ MAX_SKEW_COS = 0.57             # |cos| of the angle between the nut and the nec
 MATCH_EVERY = 3         # the reference is matched every this many frames while tracking (the flow covers the rest)
 SEARCH_MARGIN = 0.4     # while tracking, only look for the reference near the followed position (grown by this much)
 FULL_SEARCH_EVERY = 6   # ... except every this many matches, which look at the whole frame so a wrong lock can be corrected
+FRET_REFIT_EVERY = 3     # the fret wires are looked for in the live frame every this many frames
+FRET_SMOOTH = 0.25       # weight of each new fit in the running fret positions
+FRET_MAX_RMS_PX = 3.0    # a fit that misses the wires by more than this is ignored
+FRET_MAX_JUMP = 0.05     # ... and so is one that moves the nut or fret 12 by more than this fraction of the neck at once
 HOLD_FRAMES = 8         # a neck that cannot be found keeps its last position this many frames
 FLOW_POINTS = 300       # corner points followed from one frame to the next (optical flow)
 FLOW_RANSAC_PX = 2.0
@@ -104,8 +109,10 @@ class NeckReference:
 class MarklessTracker:
     """Finds the neck corners in each frame from a NeckReference. Same track() interface as MarkerTracker."""
 
-    def __init__(self, reference):
+    def __init__(self, reference, refine_frets=True):
+        """refine_frets: also fit the nut, the 12th fret and the fret spacing to the wires seen in the live frames."""
         self.reference = reference
+        self.refine_frets = refine_frets
         self._orb = cv2.ORB_create(N_FEATURES, fastThreshold=FAST_THRESHOLD)
         self._matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
         height, width = reference.image.shape[:2]
@@ -128,6 +135,9 @@ class MarklessTracker:
         self._missed = 0
         self._frame_index = 0
         self._matches_done = 0
+        self._params = None          # the last fit's (t0, s, k), the starting point of the next one
+        self._fit = None             # running (t_nut, t_12, fret bounds) fitted to the wires of the live frames
+        self.refined = None          # (corners, fret bounds) with the live fit applied; None until a fit succeeded
         self.inliers = 0       # inliers of the last successful match, for debugging
         self.last_matched = self.last_followed = None
         self.fresh_corners = {}  # kept for the recorder; this tracker has no per-frame ground truth
@@ -213,6 +223,39 @@ class MarklessTracker:
                 and SIDES_RANGE[0] <= sides <= SIDES_RANGE[1]
                 and squareness <= MAX_SKEW_COS)
 
+    @staticmethod
+    def _fit_ok(info):
+        return info is not None and info["fret_bounds"] is not None and info["rms_px"] <= FRET_MAX_RMS_PX
+
+    def _refine(self, frame, corners):
+        """
+        Fits the nut, the 12th fret and the fret spacing to the wires seen in this frame (every few frames) and keeps a
+        running, outlier-gated average. The spacing seen by the camera changes with the distance and the angle to the
+        neck, so the spacing measured in the reference photo is right only for the pose of the photo.
+        """
+        if self._frame_index % FRET_REFIT_EVERY == 0:
+            snapped, info = snap_corners(frame, corners, self._params)
+            if not self._fit_ok(info) and self._params is not None:
+                snapped, info = snap_corners(frame, corners)   # the quick fit failed or slipped: search again
+            if self._fit_ok(info):
+                length = float(np.linalg.norm(((corners[3] - corners[0]) + (corners[2] - corners[1])) / 2))
+                t_nut = info["nut_shift_px"] / length
+                t_12 = t_nut + 1 + info["length_change"]
+                bounds = np.array(info["fret_bounds"])
+                if self._fit is None:
+                    self._fit, self._params = (t_nut, t_12, bounds), info["params"]
+                elif abs(t_nut - self._fit[0]) <= FRET_MAX_JUMP and abs(t_12 - self._fit[1]) <= FRET_MAX_JUMP:
+                    w = FRET_SMOOTH
+                    self._fit = ((1 - w) * self._fit[0] + w * t_nut, (1 - w) * self._fit[1] + w * t_12,
+                                 (1 - w) * self._fit[2] + w * bounds)
+                    self._params = info["params"]
+        if self._fit is not None:
+            t_nut, t_12, bounds = self._fit
+            tl, tr, br, bl = corners
+            moved = np.array([tl + (bl - tl) * t_nut, tr + (br - tr) * t_nut,
+                              tr + (br - tr) * t_12, tl + (bl - tl) * t_12], np.float32)
+            self.refined = (moved, bounds.tolist())
+
     # --- tracker interface ----------------------------------------------------------------------------------
 
     def update(self, frame, allowed_mask=None):
@@ -263,7 +306,13 @@ class MarklessTracker:
             if self._missed > HOLD_FRAMES:
                 self._corners = None
         self._prev_small = small
-        return None if self._corners is None else self._corners / self._scale
+        if self._corners is None:
+            self._fit, self.refined, self._params = None, None, None
+            return None
+        raw = self._corners / self._scale
+        if self.refine_frets:
+            self._refine(frame, raw)
+        return raw
 
     def track(self, frame, pose_variant=0, draw=True):
         """Returns (display, neck) like MarkerTracker.track: the mirrored frame and the Fretboard (or None)."""
@@ -272,7 +321,10 @@ class MarklessTracker:
         smooth = self.update(frame)
         if smooth is None:
             return display, None
+        bounds = self.reference.fret_bounds
+        if self.refined is not None:
+            smooth, bounds = self.refined
         mirrored = [(width - x, y) for x, y in smooth]  # the display is mirrored
         neck = Fretboard(*mirrored, image_size=(width, height), pose_variant=pose_variant,
-                         fret_bounds=self.reference.fret_bounds)
+                         fret_bounds=bounds)
         return display, neck
