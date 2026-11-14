@@ -17,7 +17,12 @@ W, H = 1280, 720
 TRUE = np.array([(1100, 400), (1100, 482), (500, 500), (500, 395)], np.float32)  # TL TR BR BL: tapered, slightly tilted
 
 
-def synthetic_neck(seed=0, hand=False):
+def foreshortened(b, k):
+    """Where a wire at the ideal position b (0 = nut, 1 = fret 12) appears when the neck is foreshortened by k."""
+    return b * (1 + k) / (1 + k * b)
+
+
+def synthetic_neck(seed=0, hand=False, k=0.0):
     rng = np.random.default_rng(seed)
     img = np.full((H, W, 3), 90, np.uint8)
     fb = Fretboard(*[tuple(map(float, c)) for c in TRUE])
@@ -25,7 +30,7 @@ def synthetic_neck(seed=0, hand=False):
     cv2.fillConvexPoly(img, board, (35, 30, 28))                       # dark fretboard (beyond fret 12 too)
     cv2.line(img, fb.to_image(-0.08, -0.02), fb.to_image(1.08, -0.02), (230, 230, 230), 8)   # the nut bar, just before t = 0
     for n in range(1, 16):                                              # fret wires (also past 12)
-        t = 2 * (1 - 2 ** (-n / 12))
+        t = foreshortened(2 * (1 - 2 ** (-n / 12)), k)
         cv2.line(img, fb.to_image(-0.05, t), fb.to_image(1.05, t), (200, 200, 205), 2)
     for s in range(6):
         cv2.line(img, fb.to_image(s / 5, -0.1), fb.to_image(s / 5, 1.5), (190, 190, 190), 1)
@@ -62,6 +67,16 @@ def main():
     snapped, info = snap_corners(synthetic_neck(hand=True), clicked(-14, 6))
     check(f"a hand over part of the neck does not break the fit (max {np.abs(snapped - TRUE).max():.1f} px)",
           info is not None and np.abs(snapped - TRUE).max() < 4.0)
+
+    for k in (0.08, -0.08):
+        snapped, info = snap_corners(synthetic_neck(k=k), clicked(-12, 5))
+        expected = np.array([foreshortened(b, k) for b in FRET_BOUNDS])
+        got = np.array(info["fret_bounds"])
+        length = float(np.linalg.norm(TRUE[0] - TRUE[3]))
+        check(f"a neck foreshortened by k={k:+.2f}: the measured wire positions are within 2 px of the truth "
+              f"(max {np.abs(got - expected).max() * length:.1f} px; the ideal formula would be off by "
+              f"{np.abs(np.array(FRET_BOUNDS) - expected).max() * length:.0f} px)",
+              np.abs(got - expected).max() * length < 2.0 and np.abs(snapped - TRUE).max() < 3.0)
 
     blank = np.full((H, W, 3), 90, np.uint8)
     snapped, info = snap_corners(blank, clicked(-10, 0))

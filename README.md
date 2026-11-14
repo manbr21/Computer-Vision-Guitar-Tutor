@@ -102,7 +102,8 @@ reference one.
 Where to click matters, because the drawn frets are computed from two lines: the nut and the 12th fret wire. Click where
 the strings leave the nut toward the fretboard (the edge of the nut bar on the fretboard side, not the headstock side),
 and on the 12th fret wire itself. The tool then looks for the real fret wires in the photo and snaps your clicks onto
-them (nut position and neck length are fitted to the fret formula), so a few pixels of error do not shift the grid; it
+them (nut position, neck length and the foreshortening along the neck are fitted to the fret formula, and the fret
+spacing the app draws is the one measured in the photo, not the ideal one), so a few pixels of error do not shift the grid; it
 draws the result and `U` switches back to your raw clicks. To snap an existing reference without taking a new photo:
 `python -m chordar.reference --snap references/old.npz --out references/new.npz`.
 

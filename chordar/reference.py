@@ -29,11 +29,14 @@ PROMPTS = (f"1/4  NUT, at the low E {_EDGE} (top)",
            f"4/4  FRET 12 wire, at the low E {_EDGE} (top)")
 
 
-def reference_from_clicks(frame, clicks):
-    """NeckReference from a raw camera frame and the four clicks made on its mirrored view (x, y in view pixels)."""
+def reference_from_clicks(frame, clicks, fret_bounds=None):
+    """
+    NeckReference from a raw camera frame and the four corners on its mirrored view (x, y in view pixels), and
+    optionally the fret positions measured in the photo (see chordar.frets).
+    """
     width = frame.shape[1]
     corners = [(width - x, y) for x, y in clicks]  # back to raw camera pixels
-    return NeckReference(frame, corners)
+    return NeckReference(frame, corners, fret_bounds=fret_bounds)
 
 
 def photo_hint(clicks, size):
@@ -97,12 +100,13 @@ def click_corners(frame):
             if use_snap and snapped[1] is not None:
                 chosen = [tuple(map(float, c)) for c in snapped[0]]
             hint = photo_hint(chosen, (view.shape[1], view.shape[0]))
-            draw_neck(shown, Fretboard(*[tuple(map(float, c)) for c in chosen]))
+            bounds = snapped[1]["fret_bounds"] if use_snap and snapped[1] is not None else None
+            draw_neck(shown, Fretboard(*[tuple(map(float, c)) for c in chosen], fret_bounds=bounds))
             info = snapped[1]
             if info is None:
                 _text(shown, "No fret wires found: using your clicks as they are", 94, (0, 165, 255))
             elif use_snap:
-                _text(shown, f"Frets snapped to the real wires (nut moved {info['nut_shift_px']:+.0f} px). U: use my clicks", 94, (255, 255, 0))
+                _text(shown, f"Frets fitted to the real wires (nut {info['nut_shift_px']:+.0f} px, off by {info['rms_px']:.1f} px). U: use my clicks", 94, (255, 255, 0))
             else:
                 _text(shown, "Using your clicks. U: snap to the real fret wires", 94, (255, 255, 0))
             if hint is None:
@@ -128,7 +132,7 @@ def click_corners(frame):
             return "retake"
         if key == 13 and len(clicks) == 4:
             if hint is None or warned:
-                return chosen
+                return chosen, (snapped[1]["fret_bounds"] if use_snap and snapped[1] is not None else None)
             warned = True
         elif key == 13:
             warned = False
@@ -147,9 +151,10 @@ def main():
         corners, info = snap_corners(reference.image, reference.corners)
         if info is None:
             sys.exit("No fret wires found in that photo; the reference is unchanged")
-        NeckReference(reference.image, corners, reference.ignore_mask).save(args.out)
+        NeckReference(reference.image, corners, reference.ignore_mask, info["fret_bounds"]).save(args.out)
         print(f"Saved {args.out}: nut moved {info['nut_shift_px']:+.1f} px along the neck, length {info['length_change']:+.1%}, "
-              f"{info['matched']} of 12 frets matched to wires")
+              f"{info['matched']} of 12 frets matched to wires, {info['rms_px']:.1f} px off on average"
+              + ("" if info["fret_bounds"] else " (the fret spacing looked implausible: the ideal formula is kept)"))
         return
     if args.image:
         frame = cv2.imread(args.image)
@@ -165,14 +170,16 @@ def main():
             if frame is None:
                 sys.exit("Cancelled")
         clicks = click_corners(frame)
-        if clicks != "retake" or capture is None:
-            break
+        if clicks == "retake" and capture is not None:
+            continue
+        break
     if capture is not None:
         capture.release()
     cv2.destroyAllWindows()
     if clicks is None or clicks == "retake":
         sys.exit("Cancelled")
-    reference = reference_from_clicks(frame, clicks)
+    corners, fret_bounds = clicks
+    reference = reference_from_clicks(frame, corners, fret_bounds)
     try:
         tracker = MarklessTracker(reference)  # fails early if the photo has too few features on the neck
     except ValueError as error:

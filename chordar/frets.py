@@ -18,6 +18,7 @@ ACROSS_RANGE = (0.2, 0.8)   # the strings area used for the profile (avoids the 
 TOLERANCE = 0.012       # a wire matches a predicted fret within this fraction of the neck length
 MAX_NUT_SHIFT = 0.07    # the nut may move by this fraction of the neck length
 MAX_LENGTH_CHANGE = 0.10
+MAX_PERSPECTIVE = 0.3   # |k|: how much the scale along the neck may change from end to end
 MIN_MATCHED = 7         # frets that must be matched for the fit to be trusted
 N_FRETS = 12
 
@@ -60,14 +61,15 @@ def find_wires(t, profile, min_height=4.0):
 
 def fit_frets(wires):
     """
-    Fits wire positions to t_n = t0 + s * FRET_BOUNDS[n] (n = 1..12; FRET_BOUNDS[12] = 1, so s is the length factor).
-    Returns (t0, s, matched) or None. t0 moves the nut, t0 + s is the 12th fret, in units of the clicked neck length.
+    Fits wire positions to t_n = (t0 + s b_n) / (1 + k b_n), b_n = FRET_BOUNDS[n] (n = 1..12): the equal-temperament
+    positions seen with a one-dimensional perspective (k, the foreshortening along the neck when the camera is not
+    square to it). Returns (t0, s, k, matched, rms) with t in units of the clicked neck length, or None.
     """
     if len(wires) < MIN_MATCHED:
         return None
     bounds = np.array(FRET_BOUNDS[1:N_FRETS + 1])
     best = None
-    for t0 in np.arange(-MAX_NUT_SHIFT, MAX_NUT_SHIFT + 1e-9, 0.002):
+    for t0 in np.arange(-MAX_NUT_SHIFT, MAX_NUT_SHIFT + 1e-9, 0.002):   # coarse search without perspective
         for s in np.arange(1 - MAX_LENGTH_CHANGE, 1 + MAX_LENGTH_CHANGE + 1e-9, 0.004):
             predicted = t0 + s * bounds
             gaps = np.abs(wires[None, :] - predicted[:, None]).min(axis=1)
@@ -75,33 +77,45 @@ def fit_frets(wires):
             if best is None or score > best[0]:
                 best = (score, t0, s)
     _, t0, s = best
-    for _ in range(3):  # least squares on the wires matched to each fret
-        predicted = t0 + s * bounds
+    k = 0.0
+    for _ in range(4):  # least squares on the wires matched to each fret; t_n (1 + k b_n) = t0 + s b_n is linear in (t0, s, k)
+        predicted = (t0 + s * bounds) / (1 + k * bounds)
         nearest = np.array([wires[np.argmin(np.abs(wires - p))] for p in predicted])
         ok = np.abs(nearest - predicted) < 1.5 * TOLERANCE
         if ok.sum() < MIN_MATCHED:
             return None
-        A = np.vstack([np.ones(ok.sum()), bounds[ok]]).T
-        (t0, s), *_ = np.linalg.lstsq(A, nearest[ok], rcond=None)
-    predicted = t0 + s * bounds
+        A = np.vstack([np.ones(ok.sum()), bounds[ok], -nearest[ok] * bounds[ok]]).T
+        (t0, s, k), *_ = np.linalg.lstsq(A, nearest[ok], rcond=None)
+    predicted = (t0 + s * bounds) / (1 + k * bounds)
     nearest = np.array([wires[np.argmin(np.abs(wires - p))] for p in predicted])
-    matched = int(np.sum(np.abs(nearest - predicted) < 1.5 * TOLERANCE))
-    return (float(t0), float(s), matched) if matched >= MIN_MATCHED else None
+    ok = np.abs(nearest - predicted) < 1.5 * TOLERANCE
+    if ok.sum() < MIN_MATCHED or not -MAX_PERSPECTIVE <= k <= MAX_PERSPECTIVE:
+        return None
+    rms = float(np.sqrt(np.mean((nearest[ok] - predicted[ok]) ** 2)))
+    return float(t0), float(s), float(k), int(ok.sum()), rms
 
 
 def snap_corners(image, corners):
     """
-    The corners moved along the neck so that the nut and the 12th fret sit on the fitted positions, and a short
-    description. Returns (corners, info) with info None when the wires were not found (corners unchanged).
+    The corners moved along the neck so that the nut and the 12th fret sit on the fitted wires, and what was found.
+    Returns (corners, info) with info None when the wires were not found (corners unchanged). info has nut_shift_px,
+    length_change, matched, rms_px and fret_bounds: the 13 positions of the nut and the wires along the new neck
+    (0 to 1), which follow the real wires of this photo (perspective included) instead of the ideal formula.
     """
     corners = np.asarray(corners, np.float32)
     t, profile = wire_profile(image, corners)
     fit = fit_frets(find_wires(t, profile))
     if fit is None:
         return corners, None
-    t0, s, matched = fit
+    t0, s, k, matched, rms = fit
+    b = np.array(FRET_BOUNDS)                       # 13 values, 0 .. 1
+    wire_t = (t0 + s * b) / (1 + k * b)             # where the nut and the 12 wires are, in old t units
+    t_nut, t_12 = wire_t[0], wire_t[-1]
     tl, tr, br, bl = corners
-    snapped = np.array([tl + (bl - tl) * t0, tr + (br - tr) * t0,
-                        tr + (br - tr) * (t0 + s), tl + (bl - tl) * (t0 + s)], np.float32)
+    snapped = np.array([tl + (bl - tl) * t_nut, tr + (br - tr) * t_nut,
+                        tr + (br - tr) * t_12, tl + (bl - tl) * t_12], np.float32)
     length = float(np.linalg.norm(((bl - tl) + (br - tr)) / 2))
-    return snapped, {"nut_shift_px": t0 * length, "length_change": s - 1, "matched": matched}
+    bounds = (wire_t - t_nut) / (t_12 - t_nut)
+    sane = bool(np.all(np.diff(bounds) > 0.02))
+    return snapped, {"nut_shift_px": float(t_nut * length), "length_change": float(t_12 - t_nut - 1), "matched": matched,
+                     "rms_px": rms * length, "perspective": k, "fret_bounds": bounds.tolist() if sane else None}

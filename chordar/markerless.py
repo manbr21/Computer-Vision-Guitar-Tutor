@@ -82,19 +82,23 @@ def quad_region_mask(shape, corners, margin=REGION_MARGIN, across=None):
 class NeckReference:
     """The reference photo and the neck corners in it (TL, TR, BR, BL in raw camera pixels, as the camera sees it)."""
 
-    def __init__(self, image, corners, ignore_mask=None):
+    def __init__(self, image, corners, ignore_mask=None, fret_bounds=None):
         self.image = image
         self.corners = np.asarray(corners, dtype=np.float32)
         self.ignore_mask = ignore_mask  # 255 where the photo must not be used (for example a ArUco marker)
+        self.fret_bounds = None if fret_bounds is None else [float(v) for v in fret_bounds]  # the wires measured in the photo
 
     def save(self, path):
         extra = {} if self.ignore_mask is None else {"ignore_mask": self.ignore_mask}
+        if self.fret_bounds is not None:
+            extra["fret_bounds"] = np.array(self.fret_bounds)
         np.savez_compressed(path, image=self.image, corners=self.corners, **extra)
 
     @classmethod
     def load(cls, path):
         data = np.load(path)
-        return cls(data["image"], data["corners"], data["ignore_mask"] if "ignore_mask" in data else None)
+        return cls(data["image"], data["corners"], data["ignore_mask"] if "ignore_mask" in data else None,
+                   data["fret_bounds"] if "fret_bounds" in data else None)
 
 
 class MarklessTracker:
@@ -269,5 +273,6 @@ class MarklessTracker:
         if smooth is None:
             return display, None
         mirrored = [(width - x, y) for x, y in smooth]  # the display is mirrored
-        neck = Fretboard(*mirrored, image_size=(width, height), pose_variant=pose_variant)
+        neck = Fretboard(*mirrored, image_size=(width, height), pose_variant=pose_variant,
+                         fret_bounds=self.reference.fret_bounds)
         return display, neck

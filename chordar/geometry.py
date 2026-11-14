@@ -46,8 +46,10 @@ class Fretboard:
     height above the board.
     """
 
-    def __init__(self, TL, TR, BR, BL, image_size=None, pose_variant=0):
+    def __init__(self, TL, TR, BR, BL, image_size=None, pose_variant=0, fret_bounds=None):
         self._TL, self._TR, self._BR, self._BL = (np.array(p, dtype=np.float64) for p in (TL, TR, BR, BL))
+        # where the nut and the 12 fret wires are along the neck (0 to 1); measured from a photo, or the ideal formula
+        self.fret_bounds = list(FRET_BOUNDS if fret_bounds is None else fret_bounds)
         self._pose = estimate_pose(self.corners, image_size, pose_variant) if image_size is not None else None
 
     @property
@@ -83,7 +85,7 @@ class Fretboard:
     def target(self, string_idx, fret):
         """Pixel to press: middle of the fret space on the string (string_idx 0 = low E)."""
         fret = min(max(fret, 1), NUM_FRETS)
-        return self.to_image(string_u(string_idx), (FRET_BOUNDS[fret - 1] + FRET_BOUNDS[fret]) / 2)
+        return self.to_image(string_u(string_idx), (self.fret_bounds[fret - 1] + self.fret_bounds[fret]) / 2)
 
     # --- fingertips -------------------------------------------------------------------------------------
 
@@ -116,9 +118,9 @@ class Fretboard:
         u, t = self.to_neck_corrected(x, y, parallax)
         lo, hi = config.STRING_U_RANGE
         position = (u - lo) / (hi - lo) * (NUM_STRINGS - 1)  # 0 at the first string, 5 at the last
-        if not (-0.5 <= position < NUM_STRINGS - 0.5 and 0 <= t < FRET_BOUNDS[-1]):
+        if not (-0.5 <= position < NUM_STRINGS - 0.5 and 0 <= t < self.fret_bounds[-1]):
             return None
-        return int(np.floor(position + 0.5)), int(np.searchsorted(FRET_BOUNDS, t, side="right"))
+        return int(np.floor(position + 0.5)), int(np.searchsorted(self.fret_bounds, t, side="right"))
 
     # --- measurements -----------------------------------------------------------------------------------
 

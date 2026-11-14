@@ -4,7 +4,7 @@ import numpy as np
 
 from chordar.chords import CHORD_LIBRARY, STRING_NAMES
 from chordar.config import NUM_FRETS, NUM_STRINGS
-from chordar.geometry import FRET_BOUNDS, outline_u_range, string_u
+from chordar.geometry import outline_u_range, string_u
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 PANEL_FILL, PANEL_BORDER = (40, 40, 40), (0, 255, 0)
@@ -35,8 +35,8 @@ def draw_neck(display, neck):
         cv2.circle(display, tuple(int(v) for v in corner), 5, (255, 0, 255), -1)
 
     for n in range(1, NUM_FRETS + 1):
-        wire_left = neck.to_image(u_min, FRET_BOUNDS[n])
-        cv2.line(display, wire_left, neck.to_image(u_max, FRET_BOUNDS[n]), (0, 255, 255), 2)
+        wire_left = neck.to_image(u_min, neck.fret_bounds[n])
+        cv2.line(display, wire_left, neck.to_image(u_max, neck.fret_bounds[n]), (0, 255, 255), 2)
         cv2.putText(display, str(n), (wire_left[0] + 5, wire_left[1] - 5), FONT, 0.5, (0, 255, 255), 1)
 
     for s in range(NUM_STRINGS):
@@ -47,8 +47,9 @@ def draw_capo(display, neck, capo):
     """A capo bar across all the strings, just behind the wire of fret `capo`."""
     u_min, u_max = outline_u_range()
     u_left, u_right = u_min - CAPO_OVERHANG, u_max + CAPO_OVERHANG
-    gap = FRET_BOUNDS[capo] - FRET_BOUNDS[capo - 1]
-    t_nut_side, t_fret_side = FRET_BOUNDS[capo] - 0.4 * gap, FRET_BOUNDS[capo] - 0.1 * gap
+    bounds = neck.fret_bounds
+    gap = bounds[capo] - bounds[capo - 1]
+    t_nut_side, t_fret_side = bounds[capo] - 0.4 * gap, bounds[capo] - 0.1 * gap
     bar = np.array([neck.to_image(u_left, t_nut_side), neck.to_image(u_right, t_nut_side),
                     neck.to_image(u_right, t_fret_side), neck.to_image(u_left, t_fret_side)], dtype=np.int32)
     shade = display.copy()
