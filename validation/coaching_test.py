@@ -22,7 +22,7 @@ def main():
     # nut on the left, low E on top (u grows downward on the screen), frets grow to the right
     neck = Fretboard((100, 100), (100, 200), (900, 200), (900, 100))
     notes = fretted_notes("C")  # [(string 1, fret 3, finger 3), (2, 2, 2), (4, 1, 1)]
-    names = {1: "index", 2: "middle", 3: "ring"}
+    names = {1: "index", 2: "middle", 3: "ring", 4: "pinky"}
 
     def tips(**moves):
         """Fingertips on the targets, with `name=(dstring, dfret)` offsets (target string/fret + offset)."""
@@ -63,15 +63,16 @@ def main():
     result = coach(fretted_notes("Em", 0)[:0], {}, neck, parallax=False)
     check("a chord with no fretted notes: nothing to fix", result.perfect)
 
-    # people finger chords differently: G played with middle on low E, index on A and ring on the high e
-    g_notes = fretted_notes("G")                       # library: ring E3, middle A2, pinky e3
-    mine = {"middle": neck.target(0, 3), "index": neck.target(1, 2), "ring": neck.target(5, 3)}
-    check("a chord with another fingering than the library's is perfect when the notes are covered",
-          coach(g_notes, mine, neck, parallax=False).perfect)
-    mine["index"] = neck.target(1, 3)                  # the finger that is on the A string is one fret too far
+    # each note belongs to one finger: G as the library has it (middle E3, index A2, pinky e3)
+    g_notes = fretted_notes("G")
+    mine = {"middle": neck.target(0, 3), "index": neck.target(1, 2), "pinky": neck.target(5, 3)}
+    check("a chord is perfect when every finger is on its own note", coach(g_notes, mine, neck, parallax=False).perfect)
+    swapped = {"middle": mine["index"], "index": mine["middle"], "pinky": mine["pinky"]}
+    result = coach(g_notes, swapped, neck, parallax=False)
+    check(f"the same notes with the fingers swapped are not perfect: '{result.message}'", not result.perfect)
+    mine["index"] = neck.target(1, 3)                  # the index is one fret too far
     result = coach(g_notes, mine, neck, parallax=False)
-    check(f"the correction is for the finger that is actually there, not the library's: '{result.message}'",
-          result.message == "Finger 1: 1 fret left" and result.fix[1] == mine["index"])
+    check(f"the correction is for that finger: '{result.message}'", result.message == "Finger 1: 1 fret left" and result.fix[1] == mine["index"])
 
     shifted = fretted_notes("C", 2)
     on_shape = {names[fin]: neck.target(s, f) for s, f, fin in shifted}

@@ -1,7 +1,7 @@
 """
-Check of the scoring tolerances (chordar/scoring.py): a finger a little off its string or just behind the wire still
-covers the note; one finger covers one note only; a finger a whole string off does not.
-Run from the repository root:  python validation/scoring_test.py   Exits with status 1 on any mismatch.
+Check of the scoring (chordar/scoring.py): each note is covered by its own finger, read after taking out the shift that
+all the fingers share (camera height, angle of the hand), with tolerances on the string and the fret; and the steadying of the
+covered flags. Run from the repository root:  python validation/scoring_test.py   Exits with status 1 on any mismatch.
 """
 import os
 import sys
@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chordar import config
 from chordar.chords import fretted_notes
 from chordar.geometry import Fretboard
-from chordar.scoring import chord_accuracy, covered_notes
+from chordar.scoring import NoteStabilizer, chord_accuracy, covered_notes
 
 
 def main():
@@ -23,55 +23,65 @@ def main():
 
     neck = Fretboard((100, 100), (100, 200), (900, 200), (900, 100))   # strings 20 px apart, nut on the left
     gap = 20.0
-    notes = fretted_notes("Am")          # (string 2 fret 2, finger 2), (3, 2, finger 3), (4, 1, finger 1)
+    notes = fretted_notes("Am")          # (string 2 fret 2, middle), (3, 2, ring), (4, 1, index)
     names = {1: "index", 2: "middle", 3: "ring", 4: "pinky"}
 
-    def tips(dstring=None, dx=None):
-        """Every finger on its target, with `finger: offset` shifts in strings (dstring) or pixels along the neck (dx)."""
+    def tips(dstring=None, dx=None, all_strings=0.0, swap=False):
+        """Every finger on its note, with per-finger shifts in strings (dstring) or pixels along the neck (dx)."""
         out = {}
         for s, f, finger in notes:
             x, y = neck.target(s, f)
-            out[names[finger]] = (x + (dx or {}).get(names[finger], 0), y + gap * (dstring or {}).get(names[finger], 0))
+            name = names[finger]
+            out[name] = (x + (dx or {}).get(name, 0), y + gap * ((dstring or {}).get(name, 0) + all_strings))
+        if swap:
+            out["middle"], out["ring"] = out["ring"], out["middle"]
         return out
 
-    check("fingers on the targets score 100%", chord_accuracy(notes, tips(), neck, False) == 100)
-    check("a finger 0.5 string off still covers its note", chord_accuracy(notes, tips({"index": -0.5}), neck, False) == 100)
-    check("a finger 0.9 string off does not (66%)", chord_accuracy(notes, tips({"index": -0.9}), neck, False) == 66)
-    check("a finger 1 string off, as seen from the old tip reading, does not either", chord_accuracy(notes, tips({"index": -1.0}), neck, False) == 66)
+    def score(t):
+        return chord_accuracy(notes, t, neck, False)
 
-    x_wire = neck.to_image(0.5, neck.fret_bounds[2])[0]
+    check("fingers on their notes score 100%", score(tips()) == 100)
+    check("a finger 0.4 string off still covers its note", score(tips({"index": -0.4})) == 100)
+    check("a finger 0.9 string off does not (66%)", score(tips({"index": -0.9})) == 66)
+    check("a finger a whole string off does not (66%)", score(tips({"index": -1.0})) == 66)
+
     space_px = (neck.fret_bounds[2] - neck.fret_bounds[1]) * 800
-    behind = tips(dx={"middle": (x_wire - neck.target(2, 2)[0]) + 0.15 * space_px})       # 15% of a fret past the wire
-    check("a finger just behind the fret wire still covers the fret", chord_accuracy(notes, behind, neck, False) == 100)
-    far = tips(dx={"middle": (x_wire - neck.target(2, 2)[0]) + 0.6 * space_px})            # well into the next fret
-    check("a finger well into the next fret does not", chord_accuracy(notes, far, neck, False) == 66)
+    check("a finger a whole fret off does not (66%): nothing along the neck is shared", score(tips(dx={"middle": space_px})) == 66)
+    x_wire = neck.to_image(0.5, neck.fret_bounds[2])[0] - neck.target(2, 2)[0]
+    check("a finger just behind the fret wire still covers the fret", score(tips(dx={"middle": x_wire + 0.15 * space_px})) == 100)
 
-    # one finger between the D and G strings at fret 2 is within tolerance of both notes: it may cover only one
-    between = {"index": neck.target(4, 1), "middle": (neck.target(2, 2)[0], neck.target(2, 2)[1] + 0.5 * gap)}
-    done = covered_notes(notes, between, neck, False)
-    check(f"one finger between two notes covers one of them only ({done})", sum(done) == 2 and done[2])
+    check("the shared shift is taken out: all the fingers 0.4 string off (another camera height) still score 100%",
+          score(tips(all_strings=0.4)) == 100)
+    check("... up to a limit: all the fingers 1.2 strings off do not", score(tips(all_strings=1.2)) == 0)
+    check("each finger belongs on its own note: two fingers swapped score 33%", score(tips(swap=True)) == 33)
+
+    missing = {k: v for k, v in tips().items() if k != "ring"}
+    check("a finger that is not in view leaves its note uncovered", covered_notes(notes, missing, neck, False) == [True, False, True])
+
+    # two fingers: the shared shift is limited to 0.4 so that it cannot hide an error
+    em = fretted_notes("Em")
+    two = {names[finger]: neck.target(s, f) for s, f, finger in em}
+    check("a two-note chord scores 100% on target", chord_accuracy(em, two, neck, False) == 100)
+    moved = dict(two)
+    moved["index"] = (two["index"][0], two["index"][1] + gap)
+    check("a two-note chord with one finger a whole string off does not score 100%", chord_accuracy(em, moved, neck, False) < 100)
 
     # the steadying of the covered flags
-    from chordar.scoring import NoteStabilizer
     st = NoteStabilizer(3, 4)
-    seq = [[True]] * 2 + [[False]] + [[True]] * 3
-    shown = [st.update(x)[0] for x in seq]
+    shown = [st.update(x)[0] for x in [[True]] * 2 + [[False]] + [[True]] * 3]
     check(f"a note turns green only after 3 covered frames in a row ({shown})", shown == [False, False, False, False, False, True])
     shown = [st.update([False])[0] for _ in range(4)]
     check(f"... and turns off only after 4 missed frames in a row ({shown})", shown == [True, True, True, False])
     st = NoteStabilizer(3, 4)
-    flicker = [st.update([i % 2 == 0])[0] for i in range(20)]
-    check("a note that flickers every frame never turns green", not any(flicker))
+    check("a note that flickers every frame never turns green", not any(st.update([i % 2 == 0])[0] for i in range(20)))
     st.update([True, True, True])
     check("a different chord (other number of notes) starts again", st.update([True, True]) == [False, False])
-
-    check("the tolerances are the configured ones", config.STRING_TOLERANCE >= 0.5 and config.FRET_BEHIND >= 0)
 
     print()
     if failures:
         print("FAIL:", *failures, sep="\n  ")
         sys.exit(1)
-    print("PASS: the scoring tolerates small offsets and matches one finger to one note")
+    print("PASS: each finger is judged on its own note, with the shared shift taken out")
 
 
 if __name__ == "__main__":

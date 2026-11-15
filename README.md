@@ -56,13 +56,20 @@ Options: `--camera N`, `--no-audio` (without the microphone), `--reference FILE`
   spacing (with the foreshortening along the neck) are fitted to the fret formula; during play the same fit is repeated
   on the live frames, so the grid stays on the wires when you move closer or tilt the guitar.
 - **Fretting-hand tracking** with MediaPipe Hands.
-- **Parallax correction:** a fingertip is ~1 cm above the board, so an oblique camera would read it on the
-  neighbouring string. The camera pose is estimated from the neck corners and the touch point is shifted across the neck.
-- **Scoring and coaching:** percentage of the chord's fretted notes covered, shown as a ring. A finger covers a note if its
-  touch point is on the string (within 0.65 string gaps) and in the fret space or just behind its wire, one finger per
-  note; the touch point is the fingertip landmark moved 40% toward the last joint, because the pad that presses is behind
-  the tip (these constants in `config.py` were fitted to one recording, see Known limitations). Notes turn green when
-  covered (steadily: 3 frames in a row to turn on, 4 missed to turn off), and one message says what to fix first ("Finger 2: 1 string up, 1 fret left"), with an arrow to the note.
+- **Parallax correction (off by default):** a fingertip is ~1 cm above the board, so an oblique camera reads it shifted
+  across the neck. The camera pose is estimated from the neck corners and the touch point is shifted back; `P` turns it
+  on (with `D`). It is off because the two possible pose solutions can be mixed up at small tilts and then it makes things worse
+  (on a recording with the camera at another height it lowered the notes covered from 88% to 82%); the shared shift of
+  the scoring (below) absorbs most of what it was for.
+- **Scoring and coaching:** every note of a chord belongs to one finger, as the chord chart shows (the number in each dot),
+  and is covered when that finger is on it. A finger is read relative to its note; the shift that all the fingers share
+  (it changes with the height of the camera against the guitar and the angle of the hand) is taken out, within 0.5
+  strings and none along the neck, and then each finger must be within 0.5 string gaps of its string and in its fret
+  space or just behind the wire. The touch point is the fingertip landmark moved 40% toward the last joint, because the
+  pad that presses is behind the tip. Notes turn green when covered (steadily: 3 frames in a row to turn on, 4 missed to
+  turn off), a ring shows the accuracy, and one message says what to fix first ("Finger 2: 1 string up, 1 fret left"),
+  with an arrow from that finger to its note. The constants are in `config.py` and were fitted to recordings of one user
+  (see Known limitations).
 - **Eight chords** (A, Am, C, D, Dm, E, Em, G) with a chord chart on screen.
 - **Virtual capo:** tell the program the fret of a physical capo and the chord shape moves up that many frets.
 - **Strum detection:** the microphone listens for the sharp rise in loudness of a strum. Each strum judges the chord at
@@ -152,15 +159,17 @@ at 30 deg; with it, it stays at ~100%.
 
 ## Known limitations
 
-- The finger constants (`CONTACT_BACK`, `STRING_TOLERANCE`, `FRET_BEHIND`) were fitted to one user playing C, Am, E and G
-  at one distance (the held chord scored 94% on average, against 65% with the raw fingertip and exact string and fret);
-  on D, Dm, Em and A, not used to fit them, it scored 98.7%. They still need checking on other people and guitars.
-- At the comfortable playing distance the strings are only ~14 px apart and the finger reading is accurate to about half
-  a string, so the scoring cannot always tell a finger one string off from a correct one: in simulation on recorded
-  chords, with the tolerance of 0.65 string gaps, 96% of correctly placed notes were accepted and a finger moved a whole
-  string off was still accepted in about a third of the frames (10% with a tolerance of 0.5, which misses 16% of the
-  correct ones). Playing closer to the camera helps. Which finger is used is not checked: people finger chords
-  differently, so the correction names the free finger that is closest to the missing note.
+- The finger constants (`CONTACT_BACK`, `STRING_TOLERANCE`, `FRET_BEHIND`, `COMMON_SHIFT`) were fitted to recordings of one
+  user. The chord library follows that user's fingering (Dm with the ring finger on B3, Em with index and middle, G with
+  middle on the low E, index on A and pinky on the high e); the app judges each note by its own finger, so a different
+  fingering of the same chord is counted as wrong.
+- The reading of the fingers is accurate to about half a string (the strings are only ~14-16 px apart at the comfortable
+  playing distance), which is the limit of what the app can tell apart. On a recording of the eight chords held still, with
+  the camera ~20 degrees from the neck, 88% of the notes were covered by their own finger (74% of the frames had the whole
+  chord); on another recording with the camera ~12 degrees from the neck, the chords not used to fit the constants scored
+  98.7% with the earlier any-finger rule. In simulation a finger moved a whole string off is still accepted in about a
+  quarter of the frames (tolerance 0.5), and one moved a whole fret in 5%. The index finger on frets 1 and 2 is the least
+  reliable. A camera at the height of the neck or a little above works best.
 - The photo only works with light and distance similar to when it was taken; with much dimmer or backlit light the
   neck may not be found (take a new photo with C).
 - Tracking is validated against ArUco markers on six recorded sessions of one user, one guitar and one laptop.

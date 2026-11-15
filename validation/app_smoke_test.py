@@ -81,7 +81,7 @@ def main():
     check("a chord key selects the chord", app.handle_key(ord("8")) and app.chord == "G")
     app.handle_key(ord("p"))
     app.handle_key(ord("x"))
-    check("P toggles the parallax fix and X swaps the pose", not app.parallax_on and app.pose_variant == 1)
+    check("P toggles the parallax fix (off by default) and X swaps the pose", app.parallax_on and app.pose_variant == 1)
     check("ESC asks to quit", app.handle_key(27) is False)
     app.process_frame(frame, now=0.0)  # still works with the alternative settings and chord
 

@@ -42,7 +42,8 @@ def main():
     # --- the score ---
     neck = Fretboard((100, 100), (100, 200), (900, 200), (900, 100))  # a plain quad, no camera pose needed
     notes_capo2, notes_open = fretted_notes("C", 2), fretted_notes("C")
-    fingertips = {name: neck.target(s, fret) for name, (s, fret, _) in zip(("index", "middle", "ring"), notes_capo2)}
+    names = {1: "index", 2: "middle", 3: "ring"}
+    fingertips = {names[finger]: neck.target(s, fret) for s, fret, finger in notes_capo2}
     check("fingers on the capo-2 shape score 100% against capo 2",
           chord_accuracy(notes_capo2, fingertips, neck, parallax=False) == 100)
     check("the same fingers score 0% against the no-capo shape",

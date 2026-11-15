@@ -13,10 +13,10 @@ MAX_TILT_DEG = 40            # camera angle away from the fretboard normal beyon
 # IDEAL_DISTANCE_MM, a bit left of the middle and well below it (where a guitar rests on the lap, seen by a laptop
 # camera; measured on four recordings of one user: center x 0.38-0.43, y 0.57-0.67, neck 41-52% of the width), nut on the left.
 IDEAL_DISTANCE_MM = 520.0
-IDEAL_CENTER = [0.45, 0.66]  # mutable on purpose: set_reference_center() moves it to where the user sits
+IDEAL_CENTER = [0.5, 0.62]   # mutable on purpose: set_reference_center() moves it to where the user sits
 SCALE_TOL = 0.15             # allowed relative error of the neck length vs. the target
-OFFSET_TOL_X = 0.07          # allowed horizontal offset, as a fraction of the frame width
-OFFSET_TOL_Y = 0.10          # allowed vertical offset, as a fraction of the frame height
+OFFSET_TOL_X = 0.05          # allowed horizontal offset, as a fraction of the frame width (the neck stays near the middle)
+OFFSET_TOL_Y = 0.22          # allowed vertical offset, as a fraction of the frame height (the guitar may sit higher or lower)
 ROLL_TOL_DEG = 12            # allowed rotation of the neck axis away from horizontal
 SMOOTH_FRAMES = 5
 

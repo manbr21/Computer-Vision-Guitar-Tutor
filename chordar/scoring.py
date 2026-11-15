@@ -1,43 +1,61 @@
-"""Chord accuracy: which of the notes a chord needs are covered by a finger, one finger per note."""
+"""
+Chord accuracy: which of the notes a chord needs are covered by the finger that belongs on each of them.
+
+A finger is read relative to its note (how many string gaps and fret spaces away its touch point is). Part of that
+reading depends on where the camera is and how the hand is seen (the height of the guitar against the camera, the pose
+of the hand) and shifts all the fingers the same way; so one shared shift, within limits, is taken out before the
+fingers are compared with their notes. What is left is what each finger got wrong, and it is judged one finger per note.
+"""
+import numpy as np
+
 from chordar import config
 
+FINGER_NAMES = {1: "index", 2: "middle", 3: "ring", 4: "pinky"}
 
-def _reach(neck, point, note, parallax):
-    """How far a touch point is from a note if it can cover it (within the string and fret tolerances), else None."""
-    string_idx, fret, _ = note
-    u, t = neck.to_neck_corrected(point[0], point[1], parallax)
+
+def finger_offsets(notes, fingertips, neck, parallax=True):
+    """
+    {note index: (strings, fret spaces)}: where the finger that belongs on each (string_idx, fret, finger) note is,
+    relative to the note (+ strings = toward the high e, + fret spaces = toward the body; 0 = centre of the fret space).
+    Notes whose finger is not tracked are left out.
+    """
     lo, hi = config.STRING_U_RANGE
-    string_gap = abs((u - lo) / (hi - lo) * (config.NUM_STRINGS - 1) - string_idx)
-    near_wire, far_wire = neck.fret_bounds[fret - 1], neck.fret_bounds[fret]
-    space = far_wire - near_wire
-    if string_gap > config.STRING_TOLERANCE or not near_wire <= t < far_wire + config.FRET_BEHIND * space:
-        return None
-    return string_gap + 0.5 * abs(t - (near_wire + far_wire) / 2) / space
+    offsets = {}
+    for i, (string_idx, fret, finger) in enumerate(notes):
+        point = fingertips.get(FINGER_NAMES.get(finger))
+        if point is None:
+            continue
+        u, t = neck.to_neck_corrected(point[0], point[1], parallax)
+        near_wire, far_wire = neck.fret_bounds[fret - 1], neck.fret_bounds[fret]
+        offsets[i] = ((u - lo) / (hi - lo) * (config.NUM_STRINGS - 1) - string_idx,
+                      (t - (near_wire + far_wire) / 2) / (far_wire - near_wire))
+    return offsets
 
 
-def assign_fingers(notes, fingertips, neck, parallax=True):
+def common_shift(offsets):
     """
-    {note index: finger name} for the notes that are covered. A finger covers a note when its touch point is on the
-    note's string (within STRING_TOLERANCE string gaps) and in its fret space (or just behind the wire), and a finger
-    covers one note only: the closest pairs are matched first. Which finger it is is not checked.
+    The shift shared by the fingers, limited to COMMON_SHIFT strings and COMMON_FRET_SHIFT fret spaces (0 with a
+    single finger; at most 0.4 strings with two, which could otherwise hide one finger's error).
     """
-    pairs = []
-    for name, point in fingertips.items():
-        for i, note in enumerate(notes):
-            distance = _reach(neck, point, note, parallax)
-            if distance is not None:
-                pairs.append((distance, name, i))
-    assigned = {}
-    for _, name, i in sorted(pairs):
-        if i not in assigned and name not in assigned.values():
-            assigned[i] = name
-    return assigned
+    if len(offsets) < 2:
+        return np.zeros(2)
+    mean = np.mean(list(offsets.values()), axis=0)
+    string_limit = config.COMMON_SHIFT if len(offsets) >= 3 else min(config.COMMON_SHIFT, 0.4)
+    return np.clip(mean, [-string_limit, -config.COMMON_FRET_SHIFT], [string_limit, config.COMMON_FRET_SHIFT])
 
 
 def covered_notes(notes, fingertips, neck, parallax=True):
-    """One bool per (string_idx, fret, finger) note: is it covered by a finger? (see assign_fingers)"""
-    assigned = assign_fingers(notes, fingertips, neck, parallax)
-    return [i in assigned for i in range(len(notes))]
+    """
+    One bool per (string_idx, fret, finger) note: is it covered by its own finger? After the shared shift, the finger
+    must be within STRING_TOLERANCE string gaps of the string and in the fret space (or FRET_BEHIND of it past the wire).
+    """
+    offsets = finger_offsets(notes, fingertips, neck, parallax)
+    shift = common_shift(offsets)
+    done = [False] * len(notes)
+    for i, (strings, spaces) in offsets.items():
+        strings, spaces = strings - shift[0], spaces - shift[1]
+        done[i] = abs(strings) <= config.STRING_TOLERANCE and -0.5 <= spaces < 0.5 + config.FRET_BEHIND
+    return done
 
 
 def chord_accuracy(notes, fingertips, neck, parallax=True):

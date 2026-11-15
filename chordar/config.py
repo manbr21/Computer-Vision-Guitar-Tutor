@@ -33,12 +33,15 @@ QUAD_NUT_WIDTH_MM = 44.0 if _OUTER else 52.0     # corner to corner at the nut
 QUAD_FRET12_WIDTH_MM = 50.0 if _OUTER else 60.0  # corner to corner at fret 12
 NECK_LENGTH_MM = 325.0                           # nut line -> fret 12 line (half of a 650 mm scale)
 
-# Where a finger presses, relative to what MediaPipe reports (measured on one user's recording, see the README):
+# Where a finger presses, relative to what MediaPipe reports (measured on recordings of one user, see the README):
 CONTACT_BACK = 0.4        # the touch point is this fraction of the way from the fingertip landmark toward its last joint
-STRING_TOLERANCE = 0.65   # a finger covers a note if it is within this many string gaps of the string
+STRING_TOLERANCE = 0.5    # a finger covers its note if it is within this many string gaps of the string ...
+FRET_BEHIND = 0.25        # ... and within the fret space or this fraction of it past its wire (players press behind the wire)
+COMMON_SHIFT = 0.5        # the fingers are read with one shared shift of up to this many strings (and none along the neck),
+COMMON_FRET_SHIFT = 0.0   # which absorbs what changes with the camera height and the angle of the hand (not along the neck:
+                          # a shift there hid a finger one fret off in 40% of the frames)
 NOTE_ON_FRAMES = 3        # a note turns green after being covered this many frames in a row ...
 NOTE_OFF_FRAMES = 4       # ... and stays green until it has been missed this many frames in a row
-FRET_BEHIND = 0.25        # ... and within the fret space or this fraction of it past its wire (players press behind the wire)
 
 MAX_HANDS = 2            # hands MediaPipe may track; 2 lets the program pick the fretting hand but costs ~14 ms per frame
 FINGER_HEIGHT_MM = 10.0   # fingertip height above the fretboard surface when pressing

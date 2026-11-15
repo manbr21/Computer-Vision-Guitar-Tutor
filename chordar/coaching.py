@@ -1,15 +1,10 @@
 """Turns the finger positions into what a teacher would say: which notes are done and what to fix first."""
-import itertools
-import math
 from dataclasses import dataclass
 from typing import Optional
 
 from chordar.chords import STRING_NAMES
-from chordar.config import NUM_STRINGS
-from chordar.scoring import assign_fingers
-
-FINGER_NAMES = {1: "index", 2: "middle", 3: "ring", 4: "pinky"}  # chord-library finger number -> tracker name
-FINGER_NUMBERS = {name: number for number, name in FINGER_NAMES.items()}
+from chordar.config import NUM_STRINGS, STRING_TOLERANCE
+from chordar.scoring import FINGER_NAMES, common_shift, covered_notes, finger_offsets
 
 
 @dataclass
@@ -24,42 +19,31 @@ def _plural(n, word):
     return f"{n} {word}" + ("" if n == 1 else "s")
 
 
-def _move(ds, df):
-    """Words for a finger that is ds strings and df frets away from its target (screen directions)."""
+def _move(strings, spaces):
+    """Words for a finger that is `strings` string gaps and `spaces` fret spaces away from its note (screen directions)."""
+    ds, df = int(round(strings)), int(round(spaces))
     parts = []
     if ds:
         parts.append(f"{_plural(abs(ds), 'string')} {'down' if ds < 0 else 'up'}")
     if df:
         parts.append(f"{_plural(abs(df), 'fret')} {'right' if df < 0 else 'left'}")
+    if not parts:   # just outside the tolerance: say which way
+        if abs(strings) >= abs(spaces):
+            parts.append("a little " + ("down" if strings < 0 else "up"))
+        else:
+            parts.append("a little " + ("right" if spaces < 0 else "left"))
     return ", ".join(parts)
-
-
-def _closest_pairing(missing, free, notes, neck):
-    """{note index: finger name}: the free fingers matched to the missing notes so that the total distance is smallest."""
-    count = min(len(missing), len(free))
-    if count == 0:
-        return {}
-    best, best_cost = {}, math.inf
-    for chosen_notes in itertools.permutations(missing, count):
-        for chosen_fingers in itertools.permutations(free, count):
-            cost = sum(math.dist(free[name], neck.target(notes[i][0], notes[i][1]))
-                       for i, name in zip(chosen_notes, chosen_fingers))
-            if cost < best_cost:
-                best, best_cost = dict(zip(chosen_notes, chosen_fingers)), cost
-    return best
 
 
 def coach(notes, fingertips, neck, parallax=True, stabilizer=None):
     """
-    notes: [(string_idx, fret, finger)] the chord needs. fingertips: name -> pixel. Returns a Coaching: which
-    notes are covered (same rule as the score, steadied by `stabilizer` if given), and one message about the first
-    note (in the library's finger order) that is not covered. The finger to move is the one the free fingers' best
-    pairing with the missing notes gives (smallest total distance), whichever finger the chord library suggests:
-    people finger chords differently. Screen directions are used:
-    the nut is on the left and the low E on top.
+    notes: [(string_idx, fret, finger)] the chord needs; each note belongs to one finger. fingertips: name -> pixel.
+    Returns a Coaching: which notes are covered by their own finger (steadied by `stabilizer` if given), and one message
+    about the first note, in finger order, that is not covered. Screen directions are used: the nut is on the left
+    and the low E on top.
     """
-    assigned = assign_fingers(notes, fingertips, neck, parallax)
-    done = [i in assigned for i in range(len(notes))]
+    offsets = finger_offsets(notes, fingertips, neck, parallax)
+    done = covered_notes(notes, fingertips, neck, parallax)
     if stabilizer is not None:
         done = stabilizer.update(done)
     if not notes:
@@ -69,17 +53,17 @@ def coach(notes, fingertips, neck, parallax=True, stabilizer=None):
     if not fingertips:
         return Coaching(done, "Place your fretting hand on the neck")
 
-    free = {name: point for name, point in fingertips.items() if name not in assigned.values()}
-    missing = sorted((i for i in range(len(notes)) if not done[i]), key=lambda i: notes[i][2])
-    pairing = _closest_pairing(missing, free, notes, neck)   # which free finger goes to which missing note
-    for i in missing:
-        s, f, library_finger = notes[i]
+    shift = common_shift(offsets)
+    for i in sorted((i for i in range(len(notes)) if not done[i]), key=lambda i: notes[i][2]):
+        s, f, finger = notes[i]
         where = f"string {NUM_STRINGS - s} ({STRING_NAMES[s]}), fret {f}"
-        if i not in pairing:
-            return Coaching(done, f"Finger {library_finger}: put it on {where}")
-        pixel, number = free[pairing[i]], FINGER_NUMBERS[pairing[i]]
-        hit = neck.locate(pixel[0], pixel[1], parallax)
-        if hit is None:
-            return Coaching(done, f"Finger {number}: bring it onto the neck, {where}", fix=(notes[i], pixel))
-        return Coaching(done, f"Finger {number}: {_move(hit[0] - s, hit[1] - f)}", fix=(notes[i], pixel))
-    return Coaching(done, "Perfect!", perfect=True)
+        if i not in offsets:   # that finger is not in view
+            return Coaching(done, f"Finger {finger}: put it on {where}")
+        pixel = fingertips[FINGER_NAMES[finger]]
+        strings, spaces = offsets[i][0] - shift[0], offsets[i][1] - shift[1]
+        if neck.locate(pixel[0], pixel[1], parallax) is None:
+            return Coaching(done, f"Finger {finger}: bring it onto the neck, {where}", fix=(notes[i], pixel))
+        if abs(strings) <= STRING_TOLERANCE and -0.5 <= spaces < 0.75:   # covered, only held back by the steadying
+            continue
+        return Coaching(done, f"Finger {finger}: {_move(strings, spaces)}", fix=(notes[i], pixel))
+    return Coaching(done, "Almost: hold the fingers still")

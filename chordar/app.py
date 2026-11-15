@@ -47,7 +47,7 @@ class ChordARApp:
         self.monitor = PlacementMonitor()
         self.chord = "C"
         self.capo = 0            # capo fret: ] raises it, [ lowers it, 0 removes it
-        self.parallax_on = True  # P toggles the fingertip parallax correction
+        self.parallax_on = False  # P toggles the fingertip parallax correction (off: its sign was wrong at some camera heights)
         self.pose_variant = 0    # X swaps between the two possible camera-pose solutions
         self.auto_advance = False  # A: a correct strum moves on to the next chord
         self.last_score = None   # the accuracy shown in the latest frame, for the recorder

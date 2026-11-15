@@ -64,9 +64,9 @@ def main():
     m, c = run(shift=(-0.15 * syn.W, 0))
     check("shifted left: horizontal fails, asks to move right", not c["Horizontal"]["ok"] and "right" in c["Horizontal"]["hint"])
 
-    m, c = run(shift=(0, 0.2 * syn.H))
+    m, c = run(shift=(0, 0.3 * syn.H))
     check("too low: vertical fails, asks to move up", not c["Vertical"]["ok"] and "up" in c["Vertical"]["hint"])
-    m, c = run(shift=(0, -0.2 * syn.H))
+    m, c = run(shift=(0, -0.3 * syn.H))
     check("too high: vertical fails, asks to move down", not c["Vertical"]["ok"] and "down" in c["Vertical"]["hint"])
 
     for angle in (20, -20):
@@ -97,10 +97,10 @@ def main():
     check("monitor: warns after the delay, with the hint", hint is not None and "left" in hint)
     hint, now = feed(monitor, now, 1.0)
     check("monitor: warning clears once the placement is fixed", hint is None)
-    hint, now = feed(monitor, now, 5, shift=(0.09 * syn.W, 0))
+    hint, now = feed(monitor, now, 5, shift=(0.06 * syn.W, 0))
     check("monitor: a small drift inside the play tolerance stays quiet", hint is None)
     strict = {x["label"]: x for x in cal.evaluate(cal.alignment_metrics(
-        Fretboard(*neck_corners(shift=(0.09 * syn.W, 0)), image_size=size), size))}
+        Fretboard(*neck_corners(shift=(0.06 * syn.W, 0)), image_size=size), size))}
     check("... although the calibration tolerance would reject that drift", not strict["Horizontal"]["ok"])
     check("monitor: a lost neck gives no hint (the marker message covers it)", monitor.update(None, size, now + 10) is None)
 
