@@ -107,10 +107,10 @@ def evaluate(m, tolerance_scale=1.0):
                     "- turn the guitar to face the screen")
         checks.append(dict(label="Camera angle", ok=m["tilt"] <= max_tilt,
                            detail=f"{m['tilt']:.0f} deg (across {m['across']:.0f}, along {m['along']:.0f})", hint=hint))
-    if "elevation" in m:
-        checks.append(dict(label="Camera height", ok=m["elevation"] >= -MAX_ABOVE_DEG * tolerance_scale,
+    if "elevation" in m:   # first in the list: it is the limit that matters most, and the first failing check is what is said
+        checks.insert(0, dict(label="Camera height", ok=m["elevation"] >= -MAX_ABOVE_DEG * tolerance_scale,
                            detail=f"camera {abs(m['elevation']):.0f} deg {'below' if m['elevation'] >= 0 else 'above'} the neck",
-                           hint="The camera is above the neck: lower the notebook (or raise the guitar) to about the height of the neck"))
+                           hint="Camera above the neck: lower the notebook"))
     return checks
 
 
