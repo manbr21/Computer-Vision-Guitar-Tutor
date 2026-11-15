@@ -41,6 +41,7 @@ FLOW_MIN_INLIERS = 10
 FLOW_REGION_MARGIN = 0.2
 MAX_STEP_FRACTION = 0.12   # the neck cannot move more than this fraction of its length between two frames
 MAX_STEP_SCALE = 1.12      # ... nor change its length by more than this factor
+MATCH_GAP_FRAMES = 3       # a reference match comes this many frames after the previous one, so it may have moved this much more
 REF_WEIGHT = 0.07       # how much of each new reference match is blended into the followed position
 AGREE_FRACTION = 0.04   # reference and flow agree if the corners are within this fraction of the neck size
 REANCHOR_INLIERS = 25   # a reference match this strong replaces the followed position when they disagree
@@ -134,6 +135,7 @@ class MarklessTracker:
         self._corners = None        # current position of the neck corners (work-size pixels)
         self._prev_small = None     # previous frame (work size, gray) for the optical flow
         self._disagree = 0
+        self._pending = None         # the last reference match that disagreed with the followed position
         self._missed = 0
         self._frame_index = 0
         self._matches_done = 0
@@ -194,12 +196,13 @@ class MarklessTracker:
         moved_corners = cv2.perspectiveTransform(self._corners.reshape(-1, 1, 2).astype(np.float32), homography).reshape(4, 2)
         return moved_corners if self._plausible(moved_corners) and self._possible_motion(moved_corners) else None
 
-    def _possible_motion(self, moved):
+    def _possible_motion(self, moved, frames=1):
         """A single frame cannot move or rescale the neck by much: a bigger jump is a flow fitted to the wrong points."""
         before, length = self._corners, float(np.linalg.norm(((self._corners[3] - self._corners[0]) + (self._corners[2] - self._corners[1])) / 2))
         after = float(np.linalg.norm(((moved[3] - moved[0]) + (moved[2] - moved[1])) / 2))
         shift = float(np.linalg.norm(moved.mean(axis=0) - before.mean(axis=0)))
-        return shift <= MAX_STEP_FRACTION * length and 1 / MAX_STEP_SCALE <= after / length <= MAX_STEP_SCALE
+        scale = MAX_STEP_SCALE ** frames
+        return shift <= MAX_STEP_FRACTION * frames * length and 1 / scale <= after / length <= scale
 
     def estimate(self, frame, allowed_mask=None):
         """
@@ -289,22 +292,31 @@ class MarklessTracker:
         followed = self._follow(small, mask)
         self.last_matched, self.last_followed = matched, followed   # for diagnostics
 
+        if matched is not None and self._corners is not None and self._missed == 0 \
+                and not self._possible_motion(matched, MATCH_GAP_FRAMES):
+            matched = None   # a match that moved or rescaled the neck more than it can in a few frames is a wrong one
+
         if matched is not None and followed is not None:
             size = float(np.linalg.norm(self._ref_corners[0] - self._ref_corners[2]))
             gap = float(np.mean(np.linalg.norm(matched - followed, axis=1)))
             if gap <= AGREE_FRACTION * size:
                 new = REF_WEIGHT * matched + (1 - REF_WEIGHT) * followed
-                self._disagree = 0
+                self._disagree, self._pending = 0, None
             else:
+                # the match and the followed position disagree: only a second match that agrees with the first
+                # one (or a very long disagreement) is believed, so that one wrong match is not followed
+                confirmed = self._pending is not None and float(
+                    np.mean(np.linalg.norm(matched - self._pending, axis=1))) <= AGREE_FRACTION * size
                 self._disagree += 1
-                if self.inliers >= REANCHOR_INLIERS or self._disagree >= REANCHOR_FRAMES:
+                self._pending = matched
+                if confirmed or self._disagree >= REANCHOR_FRAMES:
                     blend = 1.0 if gap > HARD_REANCHOR * AGREE_FRACTION * size else REANCHOR_BLEND
                     new = blend * matched + (1 - blend) * followed
-                    self._disagree = 0
+                    self._disagree, self._pending = 0, None
                 else:
                     new = followed
         elif matched is not None:
-            new, self._disagree = matched, 0
+            new, self._disagree, self._pending = matched, 0, None
         else:
             new = followed
 
