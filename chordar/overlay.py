@@ -59,29 +59,26 @@ def draw_capo(display, neck, capo):
 
 
 def target_radius(neck):
-    """Radius of a chord dot: about 40% of the string gap, so that dots on neighbouring strings do not overlap."""
-    return int(np.clip(0.42 * neck.string_gap_px(), 5, 11))
+    """Radius of a chord dot: half the string gap, so that dots on neighbouring strings touch but do not overlap."""
+    return int(np.clip(0.5 * neck.string_gap_px(), 6, 11))
 
 
 def draw_chord_targets(display, neck, notes, done=None, highlight=None):
     """
-    Yellow dots, numbered with the finger the chord library suggests, where each fretted note goes; a note that is
-    covered turns green with a check. The note `highlight` (an index) gets an orange ring: it is where the arrow points.
+    Dots numbered with the finger that belongs on each fretted note (1 index ... 4 pinky), yellow while the note is
+    missing and green once it is covered. The note `highlight` (an index) gets an orange ring: it is where the arrow points.
     """
     radius = target_radius(neck)
+    scale, thickness = 0.06 * radius, 1 if radius < 9 else 2
     for i, (string_idx, fret, finger) in enumerate(notes):
         x, y = neck.target(string_idx, fret)
         covered = done is not None and done[i]
-        cv2.circle(display, (x, y), radius, (0, 200, 0) if covered else (0, 255, 255), -1)
-        cv2.circle(display, (x, y), radius, (255, 255, 255), 2)
-        if covered:
-            k = max(radius // 2, 2)
-            cv2.polylines(display, [np.array([(x - k, y), (x - k // 3, y + k * 2 // 3), (x + k * 3 // 4, y - k * 2 // 3)], np.int32)],
-                          False, (255, 255, 255), 2)
-        elif radius >= 8:
-            cv2.putText(display, str(finger), (x - radius // 3, y + radius // 2 - 1), FONT, 0.07 * radius, (0, 0, 0), 2)
+        cv2.circle(display, (x, y), radius, (0, 170, 0) if covered else (0, 255, 255), -1)
+        cv2.circle(display, (x, y), radius, (255, 255, 255), 2 if radius >= 8 else 1)
+        (w, h), _ = cv2.getTextSize(str(finger), FONT, scale, thickness)
+        cv2.putText(display, str(finger), (x - w // 2, y + h // 2), FONT, scale, (255, 255, 255) if covered else (0, 0, 0), thickness)
         if i == highlight:
-            cv2.circle(display, (x, y), radius + 5, (0, 140, 255), 3)
+            cv2.circle(display, (x, y), radius + 3, (0, 140, 255), 2)
 
 
 def draw_arrow(display, start, end, stop_short=0):
