@@ -62,7 +62,7 @@ Options: `--camera N`, `--no-audio` (without the microphone), `--reference FILE`
   touch point is on the string (within 0.65 string gaps) and in the fret space or just behind its wire, one finger per
   note; the touch point is the fingertip landmark moved 40% toward the last joint, because the pad that presses is behind
   the tip (these constants in `config.py` were fitted to one recording, see Known limitations). Notes turn green when
-  covered, and one message says what to fix first ("Finger 2: 1 string up, 1 fret left"), with an arrow to the note.
+  covered (steadily: 3 frames in a row to turn on, 4 missed to turn off), and one message says what to fix first ("Finger 2: 1 string up, 1 fret left"), with an arrow to the note.
 - **Eight chords** (A, Am, C, D, Dm, E, Em, G) with a chord chart on screen.
 - **Virtual capo:** tell the program the fret of a physical capo and the chord shape moves up that many frets.
 - **Strum detection:** the microphone listens for the sharp rise in loudness of a strum. Each strum judges the chord at
@@ -155,6 +155,12 @@ at 30 deg; with it, it stays at ~100%.
 - The finger constants (`CONTACT_BACK`, `STRING_TOLERANCE`, `FRET_BEHIND`) were fitted to one user playing C, Am, E and G
   at one distance (the held chord scored 94% on average, against 65% with the raw fingertip and exact string and fret);
   on D, Dm, Em and A, not used to fit them, it scored 98.7%. They still need checking on other people and guitars.
+- At the comfortable playing distance the strings are only ~14 px apart and the finger reading is accurate to about half
+  a string, so the scoring cannot always tell a finger one string off from a correct one: in simulation on recorded
+  chords, with the tolerance of 0.65 string gaps, 96% of correctly placed notes were accepted and a finger moved a whole
+  string off was still accepted in about a third of the frames (10% with a tolerance of 0.5, which misses 16% of the
+  correct ones). Playing closer to the camera helps. Which finger is used is not checked: people finger chords
+  differently, so the correction names the free finger that is closest to the missing note.
 - The photo only works with light and distance similar to when it was taken; with much dimmer or backlit light the
   neck may not be found (take a new photo with C).
 - Tracking is validated against ArUco markers on six recorded sessions of one user, one guitar and one laptop.
