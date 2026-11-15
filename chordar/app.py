@@ -7,11 +7,13 @@ import cv2
 from chordar.calibration import run_calibration
 from chordar.chords import MAX_CAPO, fretted_notes
 from chordar.hands import FingertipTracker
+from chordar.markerless import MarklessTracker
 from chordar.markers import MarkerTracker
 from chordar.coaching import coach
 from chordar.overlay import (draw_arrow, draw_banner, draw_capo, draw_chord_diagram, draw_chord_targets,
                              draw_fingertips, draw_gauge, draw_neck, put_text_bg)
 from chordar.placement import PlacementMonitor
+from chordar.reference import capture_reference
 from chordar.scoring import chord_accuracy
 from chordar.window import open_window, show
 
@@ -20,22 +22,26 @@ log = logging.getLogger(__name__)
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
 HELP_LINES = ["1-8   choose the chord", "[ ]   capo up / down (0 removes it)", "A     auto-advance on a perfect strum", "O     hide / show the neck markings",
-              "C     recalibrate", "P     parallax fix on/off", "X     swap camera pose",
+              "C     take a new reference photo", "P     parallax fix on/off", "X     swap camera pose",
               "D     technical info", "H     this help", "ESC   quit"]
+LAST_REFERENCE = "references/last.npz"  # the photo of the latest set-up, to reuse with --reference
 STRUM_BANNER_S = 2.0  # how long the result of a strum stays on screen
 WHITE, GREEN, ORANGE, RED, GRAY = (255, 255, 255), (0, 255, 0), (0, 165, 255), (0, 0, 255), (200, 200, 200)
 
 
 class ChordARApp:
-    def __init__(self, capture, audio=None, recorder=None, tracker=None):
+    def __init__(self, capture, audio=None, recorder=None, tracker=None, markerless=False):
         """
         audio: a StrumListener (or anything with start/poll/level/stop), or None to play without sound.
         recorder: a SessionRecorder to save the session, or None. tracker: the neck tracker (default: ArUco markers).
+        markerless: no markers: the neck is found from a photo taken when the app starts (and again with C), unless
+        a tracker built from a saved photo is given.
         """
         self.capture = capture
         self.audio = audio
         self.recorder = recorder
-        self.markers = tracker or MarkerTracker()
+        self.markerless = markerless or isinstance(tracker, MarklessTracker)
+        self.markers = tracker or (None if markerless else MarkerTracker())
         self.hands = FingertipTracker()
         self.monitor = PlacementMonitor()
         self.chord = "C"
@@ -54,7 +60,7 @@ class ChordARApp:
             self.audio.start()
         open_window(WINDOW)
         try:
-            if not run_calibration(self.capture, self.markers, self.hands, WINDOW):
+            if not self._set_up():
                 return
             while True:
                 ok, frame = self.capture.read()
@@ -75,6 +81,15 @@ class ChordARApp:
             self.capture.release()
             self.hands.close()
             cv2.destroyAllWindows()
+
+    def _set_up(self):
+        """The calibration: the guided photo (marker-free) or the calibration screen (markers). False if cancelled."""
+        if not self.markerless:
+            return run_calibration(self.capture, self.markers, self.hands, WINDOW)
+        if self.markers is not None:   # built from a saved reference: no photo
+            return True
+        self.markers = capture_reference(self.capture, save_to=LAST_REFERENCE)
+        return self.markers is not None
 
     def process_frame(self, frame, now):
         """Detects the neck and fingers in a camera frame and returns the image to show. now: frame start time."""
@@ -136,7 +151,10 @@ class ChordARApp:
         elif key == ord("x"):
             self.pose_variant = 1 - self.pose_variant
         elif key == ord("c"):
-            run_calibration(self.capture, self.markers, self.hands, WINDOW)  # ESC there comes back to playing
+            if self.markerless:   # a new photo; cancelling it keeps the current one
+                self.markers = capture_reference(self.capture, save_to=LAST_REFERENCE) or self.markers
+            else:
+                run_calibration(self.capture, self.markers, self.hands, WINDOW)  # ESC there comes back to playing
             self.monitor.reset()
         return True
 
@@ -171,9 +189,10 @@ class ChordARApp:
     def _draw_message(self, display, neck, coaching, drift_hint):
         """The one thing to do now, at the bottom."""
         if neck is None:
-            draw_banner(display, "Show all 4 markers to the camera", RED)
+            draw_banner(display, "Neck not found: hold it in the outline of the photo (C: new photo)" if self.markerless
+                        else "Show all 4 markers to the camera", RED)
         elif drift_hint is not None:
-            draw_banner(display, f"{drift_hint} (C: recalibrate)", ORANGE)
+            draw_banner(display, f"{drift_hint} (C: " + ("new photo)" if self.markerless else "recalibrate)"), ORANGE)
         elif coaching is not None:
             text = coaching.message
             if text == "Perfect!" and self.audio is not None and self.audio.active:

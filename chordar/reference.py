@@ -7,6 +7,7 @@ Makes the reference photo for marker-free tracking: a photo of the guitar and th
 Then play with:  python -m chordar --reference references/mine.npz
 """
 import argparse
+import os
 import sys
 
 import cv2
@@ -18,7 +19,8 @@ from chordar.geometry import Fretboard
 from chordar.frets import snap_corners
 from chordar.markerless import MarklessTracker, NeckReference
 from chordar.overlay import draw_neck
-from chordar.placement import MIN_STRING_GAP, alignment_metrics, evaluate
+from chordar.placement import (MIN_STRING_GAP, alignment_metrics, evaluate, lighting_check, set_reference_center,
+                               set_reference_distance)
 
 WINDOW = "ChordAR reference"
 _EDGE = "string" if config.MARKER_PLACEMENT == "outer_strings" else "edge of the fretboard"
@@ -67,6 +69,9 @@ def take_photo(capture):
         draw_ghost(view, False)
         _text(view, "Put the neck inside the outline, as you will play it, hand off the neck", 30)
         _text(view, "SPACE: take the photo   ESC: cancel", 62)
+        light = lighting_check(float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).mean()))
+        if not light["ok"]:
+            _text(view, light["hint"], 94, (0, 165, 255))
         cv2.imshow(WINDOW, view)
         key = cv2.waitKey(1) & 0xFF
         if key == 32:
@@ -136,6 +141,58 @@ def click_corners(frame):
             warned = True
         elif key == 13:
             warned = False
+
+
+def adopt_placement(corners, size):
+    """
+    Makes the neck of the reference photo (corners on the mirrored view) the reference placement of the playing
+    monitor, so that the app only warns when the guitar is moved away from where the photo was taken.
+    """
+    neck = Fretboard(*[tuple(map(float, c)) for c in corners], image_size=size)
+    set_reference_center(neck, size)
+    if neck.string_gap_px() >= MIN_STRING_GAP:   # a comfortable distance is kept as long as the strings are apart
+        set_reference_distance(neck, size)
+
+
+def capture_reference(capture, save_to=None):
+    """
+    The whole set-up in one go: a photo of the guitar held in the target outline, the four clicks on the neck (snapped
+    to the real fret wires) and the advice on the photo. Returns a MarklessTracker built on the new reference, or
+    None if the user cancelled. The reference is also saved to `save_to`, if given.
+    """
+    cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
+    try:
+        while True:
+            frame = take_photo(capture)
+            if frame is None:
+                return None
+            result = click_corners(frame)
+            if result is None:
+                return None
+            if result == "retake":
+                continue
+            corners, fret_bounds = result
+            reference = reference_from_clicks(frame, corners, fret_bounds)
+            try:
+                tracker = MarklessTracker(reference)
+            except ValueError as error:   # too few features on the neck: show why and take another photo
+                shown = cv2.flip(frame, 1)
+                _text(shown, str(error), 30, (0, 165, 255))
+                _text(shown, "Taking a new photo...", 62)
+                cv2.imshow(WINDOW, shown)
+                cv2.waitKey(2500)
+                continue
+            adopt_placement(corners, (frame.shape[1], frame.shape[0]))
+            if save_to:
+                try:
+                    os.makedirs(os.path.dirname(os.path.abspath(save_to)), exist_ok=True)
+                    reference.save(save_to)
+                except OSError:
+                    pass
+            return tracker
+    finally:
+        cv2.destroyWindow(WINDOW)
+        cv2.waitKey(1)
 
 
 def main():

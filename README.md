@@ -2,156 +2,129 @@
 
 Monitor-based augmented-reality guitar tutor. A webcam films you from the front and the screen works as a
 mirror: the program draws, over the live image of your guitar, where each finger of a chord goes, tracks your
-fretting hand and scores how many notes you got right.
+fretting hand and scores how many notes you got right. No markers and no special hardware: a laptop is enough.
 
-It is a fork of [Chordially / Computer-Vision-Guitar-Tutor](https://github.com/nathanchiu05/Computer-Vision-Guitar-Tutor)
-(ArUco markers + MediaPipe Hands) developed for a university project at CIn-UFPE.
+It started as a fork of [Chordially / Computer-Vision-Guitar-Tutor](https://github.com/nathanchiu05/Computer-Vision-Guitar-Tutor)
+(ArUco markers + MediaPipe Hands) and was developed for a university project at CIn-UFPE. The version that tracks the
+neck with four ArUco markers is kept in the `aruco-markers` branch.
 
-## Features
-
-- **Neck tracking with four ArUco markers** at the nut and at fret 12; frets follow the real fret spacing.
-- **Fretting-hand tracking** with MediaPipe Hands; each fingertip is labeled with the string and fret it is on (e.g. `D2`).
-- **Parallax correction:** a fingertip is ~1 cm above the board, so an oblique camera would read it on the
-  neighbouring string. The camera pose is estimated from the markers and the fingertip is shifted to the board point under it.
-- **Guided calibration:** a target neck is drawn on the video; distance, horizontal and vertical position,
-  level and camera angle are checked with a hint for each. During play, a warning appears if the guitar drifts.
-- **Scoring and coaching:** percentage of the chord's fretted notes covered, shown as a ring. A finger covers a note if its
-  touch point is on the string (within 0.65 string gaps) and in the fret space or just behind its wire, one finger per
-  note; the touch point is the fingertip landmark moved 40% toward the last joint, because the pad that presses is behind
-  the tip (these three constants in `config.py` were fitted to one recording, see Known limitations);
-  notes turn green when covered, and one message says what to fix first ("Finger 2: 1 string up, 1 fret left"),
-  with an arrow from the fingertip to its note.
-- **Eight chords** (A, Am, C, D, Dm, E, Em, G) with a chord chart on screen.
-- **Virtual capo:** tell the program the fret of a physical capo and the chord shape moves up that many frets
-  (the capo bar is drawn on the neck, the open strings need no finger and the score expects the shifted frets).
-- **Strum detection:** the microphone listens for the sharp rise in loudness of a strum. Each strum judges the chord at
-  that moment ("Strum! C: 100%"), and with auto-advance (`A`) a perfect strum moves on to the next chord.
-  A small bar shows the microphone level. This detects *that* you strummed, not *which* chord sounded.
-
-- **Marker-free tracking (experimental):** instead of the ArUco markers, take one photo of the guitar, click the four
-  corners of the neck, and the program finds the neck in every frame by matching features of that photo
-  (see "Without markers" below).
-
-## How it works
-
-```
-camera frame -> MarkerTracker (ArUco) -> Fretboard (pixels <-> string lane x position along the neck)
-             -> FingertipTracker (MediaPipe) -> parallax shift across the neck -> (string, fret) per finger
-             -> chord_accuracy -> overlay (neck grid, chord targets, chord chart, score)
-```
-
-## Install
+## Quick start
 
 Python 3.9+ and a webcam.
 
 ```
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+python -m chordar
 ```
 
-MediaPipe is pinned below 0.10.30: later releases removed the `mp.solutions` API used here.
+1. **Photo.** Hold the guitar as you will play it, inside the outline drawn on the screen, with your hand off the neck,
+   and press SPACE. The screen warns if the light is too dark, too bright or from behind.
+2. **Four clicks** on the neck, in the order the screen asks (the nut at the low E and the high e string, then the
+   12th fret wire at the high e and the low E string). Click on the nut edge on the fretboard side and on the 12th fret
+   wire; the program then finds the real fret wires in the photo and snaps your clicks onto them, so a few pixels of
+   error do not matter (U switches back to your raw clicks). ENTER saves; T takes a new photo.
+3. **Play.** Choose a chord with the keys 1 to 8. Notes turn green when a finger covers them, one message says what to
+   fix first, and a ring shows the accuracy. A strum on the microphone judges the chord at that moment.
 
-## Prepare the guitar
-
-1. Print `assets/arucos/print_sheet_standalone.html` at **100% scale** (each marker is 40 mm). Keep a white margin
-   around every marker and stick it on something rigid (card) so it stays flat.
-2. Place the markers (IDs as drawn on the sheet): **0** and **1** at the nut (top and bottom edge of the neck),
-   **3** and **2** at fret 12 (top and bottom). Each marker's corner facing the neck is the reference.
-3. Set `MARKER_PLACEMENT` in `chordar/config.py` to how you mounted them: `"outer_strings"` (corners touch the
-   low E and high e strings) or `"neck_edges"` (corners touch the edges of the fretboard).
-4. **Measure with a ruler** the distance between the corners at the nut, at fret 12, and from the nut line to the
-   fret 12 line, and set `QUAD_NUT_WIDTH_MM`, `QUAD_FRET12_WIDTH_MM` and `NECK_LENGTH_MM`. The camera-angle estimate
-   depends on these proportions: a ~18% error breaks the correction, up to ~9% is fine.
-5. If you stick a marker on rotated, change its corner index in `NECK_CORNER` (a dot is drawn on each corner in use).
-
-## Run
-
-```
-python -m chordar             # or: python main.py
-python -m chordar --camera 1 --debug
-python -m chordar --no-audio   # without the microphone
-```
-
-First the calibration screen: move the guitar onto the drawn neck until every check is OK, or hold it where it is
-comfortable and press ENTER to use that position as the reference (ESC quits). It also advises on the lighting
-(too dark, washed out, backlit). Then the lesson:
+The photo is saved to `references/last.npz`; `python -m chordar --reference references/last.npz` starts without
+taking a new one (it only works with similar light and a guitar held in a similar way).
 
 | Key | Action |
 |-----|--------|
 | `1`-`8` | choose the chord (A, Am, C, D, Dm, E, Em, G) |
 | `]` / `[` | move the virtual capo up / down a fret (up to fret 7); `0` removes it |
 | `A` | auto-advance: a perfect strum moves to the next chord |
-| `D` | technical info: pose, parallax, fingertip labels, FPS, microphone level |
+| `C` | take a new photo (ESC there keeps the current one) |
+| `O` | hide / show the neck markings (outline, frets, strings); the fingers and the chord targets stay |
 | `H` | list of the keys |
-| `O` | hide / show the neck markings (markers, outline, frets, strings); the fingers and the chord targets stay |
-| `P` | toggle the parallax correction (compare the score with and without it) |
+| `D` | technical info: pose, parallax, fingertip labels, FPS, microphone level |
+| `P` | toggle the parallax correction |
 | `X` | swap between the two camera-pose solutions |
-| `C` | recalibrate (ESC there goes back to playing) |
 | `ESC` | quit |
 
-## Without markers (experimental)
+Options: `--camera N`, `--no-audio` (without the microphone), `--reference FILE`, `--record FOLDER`,
+`--markers` (ArUco markers instead of the photo, see below), `--debug`.
+
+## Features
+
+- **Marker-free neck tracking from one photo.** Features of the photo's neck region are matched to each frame
+  (ORB + RANSAC homography) and the corners are followed between frames by optical flow; the two are blended
+  (the flow is steady but drifts, the match does not drift but jumps), and implausible matches (a stretched or
+  sheared neck, a jump the neck cannot make) are refused.
+- **Frets drawn where the wires really are.** The photo's fret wires are found and the nut, the 12th fret and the
+  spacing (with the foreshortening along the neck) are fitted to the fret formula; during play the same fit is repeated
+  on the live frames, so the grid stays on the wires when you move closer or tilt the guitar.
+- **Fretting-hand tracking** with MediaPipe Hands.
+- **Parallax correction:** a fingertip is ~1 cm above the board, so an oblique camera would read it on the
+  neighbouring string. The camera pose is estimated from the neck corners and the touch point is shifted across the neck.
+- **Scoring and coaching:** percentage of the chord's fretted notes covered, shown as a ring. A finger covers a note if its
+  touch point is on the string (within 0.65 string gaps) and in the fret space or just behind its wire, one finger per
+  note; the touch point is the fingertip landmark moved 40% toward the last joint, because the pad that presses is behind
+  the tip (these constants in `config.py` were fitted to one recording, see Known limitations). Notes turn green when
+  covered, and one message says what to fix first ("Finger 2: 1 string up, 1 fret left"), with an arrow to the note.
+- **Eight chords** (A, Am, C, D, Dm, E, Em, G) with a chord chart on screen.
+- **Virtual capo:** tell the program the fret of a physical capo and the chord shape moves up that many frets.
+- **Strum detection:** the microphone listens for the sharp rise in loudness of a strum. Each strum judges the chord at
+  that moment ("Strum! C: 100%"), and with auto-advance (`A`) a perfect strum moves on to the next chord. This detects
+  *that* you strummed, not *which* chord sounded.
+- **Drift warning:** if the guitar moves away from where the photo was taken, a hint says how (C takes a new photo).
+
+## How it works
 
 ```
-python -m chordar.reference --out references/mine.npz     # SPACE takes the photo, then click the 4 corners
-python -m chordar --reference references/mine.npz
+photo (once) -> NeckReference (4 corners snapped to the fret wires + measured fret spacing)
+camera frame -> MarklessTracker (ORB match + optical flow + live fret fit) -> Fretboard (pixels <-> string x fret)
+             -> FingertipTracker (MediaPipe) -> touch point -> parallax shift -> covered notes per chord
+             -> overlay (neck grid, targets, coaching message, chord chart, accuracy ring)
 ```
 
-The photo screen draws the target neck of the calibration: put the guitar inside the outline, with your hand off the
-neck. The closer the guitar is, the more precisely the fingers project, but a comfortable playing distance is kept: after the
-four clicks the tool only warns about position, level, camera angle, or a neck too small to tell the strings apart
-(T takes a new photo, ENTER twice saves anyway). In the calibration, ENTER now also takes your current distance as the
-reference one.
+## Markers instead of the photo
 
-Where to click matters, because the drawn frets are computed from two lines: the nut and the 12th fret wire. Click where
-the strings leave the nut toward the fretboard (the edge of the nut bar on the fretboard side, not the headstock side),
-and on the 12th fret wire itself. The tool then looks for the real fret wires in the photo and snaps your clicks onto
-them (nut position, neck length and the foreshortening along the neck are fitted to the fret formula, and the fret
-spacing the app draws is the one measured in the photo, not the ideal one), so a few pixels of error do not shift the grid; it
-draws the result and `U` switches back to your raw clicks. To snap an existing reference without taking a new photo:
-`python -m chordar.reference --snap references/old.npz --out references/new.npz`.
+The original method, kept for comparison and as ground truth for the evaluation tools: `python -m chordar --markers`
+(or check out the `aruco-markers` branch).
 
-The corners to click, in order, as the neck looks on the (mirrored) screen: the nut at the low E string (top), the
-nut at the high e string (bottom), fret 12 at the high e string (bottom), fret 12 at the low E string (top); they are
-the points the markers' corners mark. The tracker matches ORB features of the photo's neck region to each frame and
-estimates a homography (RANSAC); in between, the corners are followed from frame to frame by optical flow, and each
-match with the photo is blended in lightly (a complementary filter: the flow is steady but drifts, the match does not
-drift but jumps). The four corners feed the same fretboard model as the markers do.
+1. Print `assets/arucos/print_sheet_standalone.html` at **100% scale** (each marker is 40 mm), keep a white margin
+   around every marker and stick it on something rigid so it stays flat.
+2. Place the markers: **0** and **1** at the nut (top and bottom edge of the neck), **3** and **2** at fret 12.
+3. Set `MARKER_PLACEMENT` in `chordar/config.py` (`"outer_strings"` or `"neck_edges"`) and measure with a ruler
+   `QUAD_NUT_WIDTH_MM`, `QUAD_FRET12_WIDTH_MM` and `NECK_LENGTH_MM` (a ~18% error breaks the camera-angle estimate).
+4. With markers the calibration screen draws a target neck and checks distance, position, level, camera angle and the
+   light; ENTER takes your current position and distance as the reference.
 
-To measure it against the markers, record sessions with the markers glued on and evaluate:
+Measuring the photo-based tracker against the markers: record sessions with the markers glued on, then evaluate.
 
 ```
-python -m chordar --record sessions/                      # raw video + the corners the markers found (ground truth)
-python validation/evaluate_recording.py sessions/<date_time> --reference-frame 30
+python -m chordar --markers --record sessions/            # raw video + the corners the markers found (ground truth)
+python validation/evaluate_recording.py sessions/<date_time>
 python validation/markerless_test.py --photo photo_with_markers.jpg    # random changes to one photo
 ```
 
 The markers are painted out of the reference and masked in every frame, so the marker-free tracker cannot use them.
-Not yet validated on a real session without markers.
 
 ## Project layout
 
 ```
 chordar/
-  config.py       marker placement, neck dimensions, camera (the settings you edit)
+  app.py          per-frame processing, keyboard control and the set-up (photo or marker calibration)
+  reference.py    the photo set-up: photo, four clicks, advice, snapping (python -m chordar.reference does it alone)
+  markerless.py   marker-free neck tracking from the reference photo
+  frets.py        finds the fret wires and fits the nut, the 12th fret and the spacing to them
   geometry.py     Fretboard: pixels <-> neck coordinates, fret positions, locating a fingertip
-  pose.py         camera pose from the marker corners, parallax shift, camera angles
-  markers.py      ArUco detection and smoothing
-  hands.py        fingertip tracking (MediaPipe Hands)
-  audio.py        strum detection from the microphone
-  coaching.py     which notes are done and the one correction to say
-  markerless.py   marker-free neck tracking from a reference photo
-  reference.py    tool to make that reference (photo + four clicks)
-  frets.py        snaps the clicked corners to the real fret wires of the photo
-  recorder.py     records a session (raw video + ground-truth corners)
-  window.py       resizable display window, image scaled without stretching
+  pose.py         camera pose from the neck corners, parallax shift, camera angles
+  hands.py        fretting-hand tracking (MediaPipe Hands) and the touch point
+  scoring.py      which notes a chord has covered (tolerances, one finger per note)
+  coaching.py     the one correction to say
   chords.py       chord library
-  scoring.py      chord accuracy
-  placement.py    neck-placement metrics and checks, drift monitor
-  calibration.py  calibration screen with the target neck
+  audio.py        strum detection from the microphone
+  placement.py    neck-placement metrics and checks, drift monitor, lighting advice
   overlay.py      everything drawn over the video
-  app.py          per-frame processing and keyboard control
+  window.py       resizable display window, image scaled without stretching
+  recorder.py     records a session (raw video + ground-truth corners)
+  markers.py, calibration.py   the ArUco markers and their calibration screen (--markers)
+  config.py       the settings you edit
 assets/arucos/    marker images and a printable sheet
-validation/       simulation-based checks (no camera needed)
+validation/       checks that need no camera
 legacy/web_demo/  Flask demo from the original project (not used by ChordAR)
 ```
 
@@ -160,17 +133,18 @@ legacy/web_demo/  Flask demo from the original project (not used by ChordAR)
 Run from the repository root; each one exits with status 1 if a check fails.
 
 ```
-python validation/synthetic_parallax_test.py     # virtual camera: tilt, off-center neck, wrong FOV/dimensions
-python validation/calibration_alignment_test.py  # placement metrics, hints and the drift monitor
-python validation/app_smoke_test.py              # ArUco markers drawn on a synthetic frame, end to end
+python validation/setup_flow_test.py             # the photo set-up and the app that uses it
+python validation/frets_test.py                  # fret-wire snapping on a synthetic tapered neck
+python validation/reference_test.py              # marker-free tracker on a synthetic textured scene
+python validation/scoring_test.py                # scoring tolerances, one finger per note
+python validation/coaching_test.py               # finger coaching messages
 python validation/capo_test.py                   # virtual capo: shifted notes, score, keys and drawing
-python validation/recorder_test.py                # the session recorder
-python validation/frets_test.py                    # fret-wire snapping on a synthetic tapered neck
-python validation/reference_test.py               # marker-free tracker on a synthetic textured scene
-python validation/scoring_test.py                 # scoring tolerances, one finger per note
-python validation/coaching_test.py                # finger coaching messages
-python validation/lighting_test.py                # lighting advice in the calibration
 python validation/audio_test.py                  # strum detector on synthetic sound, and its use by the app
+python validation/lighting_test.py               # lighting advice
+python validation/recorder_test.py               # the session recorder
+python validation/synthetic_parallax_test.py     # virtual camera: tilt, off-center neck, wrong FOV/dimensions
+python validation/calibration_alignment_test.py  # marker calibration: placement metrics, hints, drift monitor
+python validation/app_smoke_test.py              # ArUco markers drawn on a synthetic frame, end to end
 ```
 
 In the simulation, without the parallax correction the right string drops to ~70% at 20 deg of camera tilt and ~5%
@@ -179,17 +153,15 @@ at 30 deg; with it, it stays at ~100%.
 ## Known limitations
 
 - The finger constants (`CONTACT_BACK`, `STRING_TOLERANCE`, `FRET_BEHIND`) were fitted to one user playing C, Am, E and G
-  at one distance: with them the held chord scored 94% on average (65% with the raw fingertip landmark and exact
-  string and fret), while the other chords stayed at 32% (they share notes). They need checking on other people and chords.
-
-- Markers must be rigid and flat on the instrument; a loosely taped marker shakes the whole grid.
-- A dark patch is occasionally read as a marker ID 0-3, briefly flickering a phantom neck (a filter is planned).
-- The fret coordinate follows the drawn grid, which does not model perspective: with strong tilt along the neck
-  or a neck far from the image center the frets drift (the calibration keeps play within the safe range).
+  at one distance (the held chord scored 94% on average, against 65% with the raw fingertip and exact string and fret);
+  on D, Dm, Em and A, not used to fit them, it scored 98.7%. They still need checking on other people and guitars.
+- The photo only works with light and distance similar to when it was taken; with much dimmer or backlit light the
+  neck may not be found (take a new photo with C).
+- Tracking is validated against ArUco markers on six recorded sessions of one user, one guitar and one laptop.
+- With strong tilt along the neck or a neck far from the image center the frets can drift.
 - Tracking two hands (`MAX_HANDS = 2` in `config.py`, needed to pick the fretting hand) costs ~14 ms more per frame
   than one; set it to 1 for speed if only the fretting hand is in view.
-- When the pinky's phalanx shows more than its tip, MediaPipe may take the phalanx for the fingertip.
-- The target neck assumes the nut on the left of the (mirrored) screen; left-handed layouts are not supported.
+- The target outline assumes the nut on the left of the (mirrored) screen; left-handed layouts are not supported.
 
 ## Credits and licenses
 
