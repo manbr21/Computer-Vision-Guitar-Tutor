@@ -76,7 +76,7 @@ def alignment_metrics(neck, image_size):
     return metrics
 
 
-def evaluate(m, tolerance_scale=1.0):
+def evaluate(m, tolerance_scale=1.0, camera_height=True):
     """
     Checks in priority order: list of dicts with label, ok, detail and the hint to show when not ok.
     tolerance_scale loosens every tolerance (1.0 for calibration, more during play).
@@ -107,7 +107,7 @@ def evaluate(m, tolerance_scale=1.0):
                     "- turn the guitar to face the screen")
         checks.append(dict(label="Camera angle", ok=m["tilt"] <= max_tilt,
                            detail=f"{m['tilt']:.0f} deg (across {m['across']:.0f}, along {m['along']:.0f})", hint=hint))
-    if "elevation" in m:   # first in the list: it is the limit that matters most, and the first failing check is what is said
+    if camera_height and "elevation" in m:   # first in the list: it is the limit that matters most, and the first failing check is what is said
         checks.insert(0, dict(label="Camera height", ok=m["elevation"] >= -MAX_ABOVE_DEG * tolerance_scale,
                            detail=f"camera {abs(m['elevation']):.0f} deg {'below' if m['elevation'] >= 0 else 'above'} the neck",
                            hint="Camera above the neck: lower the notebook"))
@@ -162,7 +162,8 @@ class PlacementMonitor:
         if neck is None:
             self.reset()
             return None
-        checks = evaluate(smooth(self._history, alignment_metrics(neck, image_size)), self._tolerance_scale)
+        # the camera height is judged on the photo only: while playing, the hand and the fingers make the edges of the neck too noisy
+        checks = evaluate(smooth(self._history, alignment_metrics(neck, image_size)), self._tolerance_scale, camera_height=False)
         failing = next((c for c in checks if not c["ok"]), None)
         if failing is None:
             self._out_since = None

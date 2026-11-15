@@ -65,6 +65,12 @@ def main():
     m, c = run(across=15)
     check(f"camera 15 deg below the neck is fine (elevation {m['elevation']:+.0f})", c["Camera height"]["ok"])
 
+    neck_above = Fretboard(*neck_corners(across=-15), image_size=(syn.W, syn.H))
+    above_monitor = cal.PlacementMonitor()
+    for k in range(120):
+        hint = above_monitor.update(neck_above, (syn.W, syn.H), k / 30)
+    check("while playing the monitor does not judge the camera height (only the photo does)", hint is None)
+
     m, c = run(shift=(0.15 * syn.W, 0))
     check("shifted right: horizontal fails, asks to move left", not c["Horizontal"]["ok"] and "left" in c["Horizontal"]["hint"])
     m, c = run(shift=(-0.15 * syn.W, 0))
