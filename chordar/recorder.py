@@ -25,13 +25,18 @@ class SessionRecorder:
         self._writer = None
         self._file = open(os.path.join(self.path, "corners.csv"), "w", newline="")
         self._csv = csv.writer(self._file)
-        self._csv.writerow(["frame", "time_s", "all_markers"] + [f"{n}{axis}" for n in CORNER_NAMES for axis in "xy"])
+        self._csv.writerow(["frame", "time_s", "all_markers"] + [f"{n}{axis}" for n in CORNER_NAMES for axis in "xy"]
+                           + ["chord", "capo", "score"])
         self._frames = 0
         self._start = None
         log.info("Recording the session to %s", self.path)
 
-    def write(self, frame, tracker, now):
-        """frame: the raw camera frame. tracker: the MarkerTracker that just processed it."""
+    def write(self, frame, tracker, now, info=None):
+        """
+        frame: the raw camera frame. tracker: the tracker that just processed it. info: what the app showed for this
+        frame, {"chord": name, "capo": fret, "score": percent or None}, so a recording can be analysed chord by chord.
+        """
+        info = info or {}
         height, width = frame.shape[:2]
         if self._writer is None:
             self._writer = cv2.VideoWriter(os.path.join(self.path, "video.mp4"), cv2.VideoWriter_fourcc(*"mp4v"),
@@ -43,6 +48,7 @@ class SessionRecorder:
         row = [self._frames, f"{now - self._start:.3f}", int(complete)]
         for name in CORNER_NAMES:  # the tracker works on the mirrored image: undo the mirroring
             row += [f"{width - fresh[name][0]:.2f}", f"{fresh[name][1]:.2f}"] if complete else ["", ""]
+        row += [info.get("chord", ""), info.get("capo", ""), "" if info.get("score") is None else info["score"]]
         self._csv.writerow(row)
         self._frames += 1
 

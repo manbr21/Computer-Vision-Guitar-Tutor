@@ -52,6 +52,7 @@ def main():
         check(f"the recorded corners are in raw camera pixels, within 3 px of the drawn ones (max {max(errors):.1f} px)",
               max(errors) < 3)
         check("an incomplete frame has empty corner cells", rows[4]["TLx"] == "")
+        check("without info the chord columns are empty", rows[0]["chord"] == "" and rows[0]["score"] == "")
         capture = cv2.VideoCapture(os.path.join(recorder.path, "video.mp4"))
         ok, first = capture.read()
         count = 1 + sum(1 for _ in iter(lambda: capture.read()[0], False))
@@ -97,6 +98,7 @@ def main():
         app.run()
         rows = list(csv.DictReader(open(os.path.join(recorder.path, "corners.csv"))))
         check("run() records every frame the camera delivered and closes the recorder", len(rows) == 6 and recorder._file.closed)
+        check("run() writes the chord and capo shown in each frame", rows[0]["chord"] == "C" and rows[0]["capo"] == "0")
         check("run() starts and stops the audio", Audio.started and Audio.stopped)  # run() also closes the hand tracker
 
     print()

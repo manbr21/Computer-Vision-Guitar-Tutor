@@ -50,6 +50,7 @@ class ChordARApp:
         self.parallax_on = True  # P toggles the fingertip parallax correction
         self.pose_variant = 0    # X swaps between the two possible camera-pose solutions
         self.auto_advance = False  # A: a correct strum moves on to the next chord
+        self.last_score = None   # the accuracy shown in the latest frame, for the recorder
         self.last_strum = None   # (time, chord, capo, score or None) of the latest strum
         self.show_neck_overlay = True  # O: the markers, outline, frets and strings; off leaves only fingers and targets
         self.show_help = False   # H: list of the keys
@@ -71,7 +72,8 @@ class ChordARApp:
                 now = time.time()
                 show(WINDOW, self.process_frame(frame, now))
                 if self.recorder is not None:
-                    self.recorder.write(frame, self.markers, now)
+                    self.recorder.write(frame, self.markers, now,
+                                        {"chord": self.chord, "capo": self.capo, "score": self.last_score})
                 if not self.handle_key(cv2.waitKey(1) & 0xFF):
                     break
         finally:
@@ -116,6 +118,7 @@ class ChordARApp:
         else:
             self.stabilizer.reset()
 
+        self.last_score = score
         self._handle_strums(score, now)
         drift_hint = self.monitor.update(neck, size, now)
         self._draw_header(display, score)
