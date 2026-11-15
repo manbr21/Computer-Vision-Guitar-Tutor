@@ -7,6 +7,7 @@ import numpy as np
 from chordar import config
 
 MIN_STRING_GAP = 15          # px between adjacent strings; below this, string discrimination gets unreliable
+MAX_ABOVE_DEG = 8             # the camera may be this many degrees above the neck (the Camera height check)
 MAX_TILT_DEG = 40            # camera angle away from the fretboard normal beyond which detection degrades
 
 # Where the neck should sit in the (mirrored) image: seen by a camera looking straight at it from
@@ -69,6 +70,9 @@ def alignment_metrics(neck, image_size):
     angles = neck.camera_angles()
     if angles is not None:
         metrics.update(tilt=angles[0], across=angles[1], along=angles[2])
+    elevation = neck.camera_elevation()
+    if elevation is not None:
+        metrics["elevation"] = elevation
     return metrics
 
 
@@ -103,6 +107,10 @@ def evaluate(m, tolerance_scale=1.0):
                     "- turn the guitar to face the screen")
         checks.append(dict(label="Camera angle", ok=m["tilt"] <= max_tilt,
                            detail=f"{m['tilt']:.0f} deg (across {m['across']:.0f}, along {m['along']:.0f})", hint=hint))
+    if "elevation" in m:
+        checks.append(dict(label="Camera height", ok=m["elevation"] >= -MAX_ABOVE_DEG * tolerance_scale,
+                           detail=f"camera {abs(m['elevation']):.0f} deg {'below' if m['elevation'] >= 0 else 'above'} the neck",
+                           hint="The camera is above the neck: lower the notebook (or raise the guitar) to about the height of the neck"))
     return checks
 
 

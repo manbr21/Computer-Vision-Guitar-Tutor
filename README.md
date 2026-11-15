@@ -46,6 +46,15 @@ level), and while it is on, `P` turns the parallax correction on and off and `X`
 Options: `--camera N`, `--no-audio` (without the microphone), `--reference FILE`, `--record FOLDER`,
 `--markers` (ArUco markers instead of the photo, see below), `--debug`.
 
+## Where to put the notebook
+
+Put the notebook in front of you on something stable (a table, a stool, a chair) so that **the webcam is at the height of the
+neck or a little below it**, about 50-60 cm away, with the screen where you can see it. The finger positions are read from
+the hand as the camera sees it, and what the app corrects (the shift that all the fingers share) has a limit: with the camera
+10 to 20 degrees below the neck the eight chords were read 100% of the time once the fingers were in place, with the camera
+about 20 degrees *above* it only about 60% (the fingers read a whole string off). The photo screen and the drift warning say
+"The camera is above the neck: lower the notebook (or raise the guitar)" when that happens.
+
 ## Features
 
 - **Marker-free neck tracking from one photo.** Features of the photo's neck region are matched to each frame

@@ -59,6 +59,12 @@ def main():
     m, c = run(distance=700)
     check("too far: distance fails, asks to move closer", not c["Distance"]["ok"] and "closer" in c["Distance"]["hint"])
 
+    m, c = run(across=-15)
+    check(f"camera 15 deg above the neck: the camera height fails and says to lower the notebook (elevation {m['elevation']:+.0f})",
+          not c["Camera height"]["ok"] and "lower" in c["Camera height"]["hint"] and c["Camera angle"]["ok"])
+    m, c = run(across=15)
+    check(f"camera 15 deg below the neck is fine (elevation {m['elevation']:+.0f})", c["Camera height"]["ok"])
+
     m, c = run(shift=(0.15 * syn.W, 0))
     check("shifted right: horizontal fails, asks to move left", not c["Horizontal"]["ok"] and "left" in c["Horizontal"]["hint"])
     m, c = run(shift=(-0.15 * syn.W, 0))

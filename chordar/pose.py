@@ -59,6 +59,25 @@ def parallax_across_mm(pose, x, y):
     return float(shift[1])
 
 
+def signed_across_tilt(corners, image_size):
+    """
+    Degrees the camera is off the fretboard normal across the neck, signed: + when the camera is on the high e side
+    (below the neck on the mirrored screen, the low E on top), - when it is on the low E side (above the neck). A planar
+    view cannot tell the sign by itself (the two PnP solutions are mirror images); the side of the neck that looks longer
+    can: the edge closer to the camera is longer. None if the pose cannot be estimated.
+    """
+    tl, tr, br, bl = (np.asarray(c, dtype=np.float64) for c in corners)
+    ratio = np.linalg.norm(bl - tl) / np.linalg.norm(br - tr)   # the edge along the low E over the one along the high e
+    want = 1 if ratio < 1 else -1
+    for variant in (0, 1):
+        pose = estimate_pose(corners, image_size, variant)
+        if pose is None:
+            return None
+        to_camera = pose.position - np.array([config.NECK_LENGTH_MM / 2, 0.0, 0.0])
+        if np.sign(to_camera[1]) == want or variant == 1:
+            return float(np.degrees(np.arctan2(want * abs(to_camera[1]), abs(to_camera[2]))))
+
+
 def camera_angles(pose):
     """
     (total, across, along) in degrees: how far the camera is from looking straight down the fretboard

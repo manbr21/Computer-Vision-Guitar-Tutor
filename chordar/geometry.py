@@ -3,7 +3,7 @@ import numpy as np
 
 from chordar import config
 from chordar.config import NUM_FRETS, NUM_STRINGS
-from chordar.pose import camera_angles, estimate_pose, parallax_across_mm
+from chordar.pose import camera_angles, estimate_pose, parallax_across_mm, signed_across_tilt
 
 
 def _fret_bounds():
@@ -51,6 +51,7 @@ class Fretboard:
         # where the nut and the 12 fret wires are along the neck (0 to 1); measured from a photo, or the ideal formula
         self.fret_bounds = list(FRET_BOUNDS if fret_bounds is None else fret_bounds)
         self._pose = estimate_pose(self.corners, image_size, pose_variant) if image_size is not None else None
+        self._image_size = image_size
 
     @property
     def corners(self):
@@ -123,6 +124,10 @@ class Fretboard:
         return int(np.floor(position + 0.5)), int(np.searchsorted(self.fret_bounds, t, side="right"))
 
     # --- measurements -----------------------------------------------------------------------------------
+
+    def camera_elevation(self):
+        """Degrees of tilt across the neck, + when the camera is below the neck on the screen, - when it is above; None without a size."""
+        return None if self._image_size is None else signed_across_tilt(self.corners, self._image_size)
 
     def camera_angles(self):
         """(total, across, along) camera tilt in degrees, or None without a pose."""
