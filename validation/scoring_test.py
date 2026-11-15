@@ -51,6 +51,20 @@ def main():
     done = covered_notes(notes, between, neck, False)
     check(f"one finger between two notes covers one of them only ({done})", sum(done) == 2 and done[2])
 
+    # the steadying of the covered flags
+    from chordar.scoring import NoteStabilizer
+    st = NoteStabilizer(3, 4)
+    seq = [[True]] * 2 + [[False]] + [[True]] * 3
+    shown = [st.update(x)[0] for x in seq]
+    check(f"a note turns green only after 3 covered frames in a row ({shown})", shown == [False, False, False, False, False, True])
+    shown = [st.update([False])[0] for _ in range(4)]
+    check(f"... and turns off only after 4 missed frames in a row ({shown})", shown == [True, True, True, False])
+    st = NoteStabilizer(3, 4)
+    flicker = [st.update([i % 2 == 0])[0] for i in range(20)]
+    check("a note that flickers every frame never turns green", not any(flicker))
+    st.update([True, True, True])
+    check("a different chord (other number of notes) starts again", st.update([True, True]) == [False, False])
+
     check("the tolerances are the configured ones", config.STRING_TOLERANCE >= 0.5 and config.FRET_BEHIND >= 0)
 
     print()

@@ -10,11 +10,11 @@ from chordar.hands import FingertipTracker
 from chordar.markerless import MarklessTracker
 from chordar.markers import MarkerTracker
 from chordar.coaching import coach
-from chordar.overlay import (draw_arrow, draw_banner, draw_capo, draw_chord_diagram, draw_chord_targets,
+from chordar.overlay import (draw_arrow, draw_banner, draw_capo, draw_chord_diagram, draw_chord_targets, target_radius,
                              draw_fingertips, draw_gauge, draw_neck, put_text_bg)
 from chordar.placement import PlacementMonitor
 from chordar.reference import capture_reference
-from chordar.scoring import chord_accuracy
+from chordar.scoring import NoteStabilizer
 from chordar.window import open_window, show
 
 log = logging.getLogger(__name__)
@@ -43,6 +43,7 @@ class ChordARApp:
         self.markerless = markerless or isinstance(tracker, MarklessTracker)
         self.markers = tracker or (None if markerless else MarkerTracker())
         self.hands = FingertipTracker()
+        self.stabilizer = NoteStabilizer()   # steadies which notes are shown as covered
         self.monitor = PlacementMonitor()
         self.chord = "C"
         self.capo = 0            # capo fret: ] raises it, [ lowers it, 0 removes it
@@ -100,17 +101,20 @@ class ChordARApp:
         score, coaching = None, None
         if neck is not None:
             notes = fretted_notes(self.chord, self.capo)
-            coaching = coach(notes, fingertips, neck, self.parallax_on)
+            coaching = coach(notes, fingertips, neck, self.parallax_on, self.stabilizer)
             if self.show_neck_overlay:
                 draw_neck(display, neck)
             if self.capo:
                 draw_capo(display, neck, self.capo)
-            draw_chord_targets(display, neck, notes, coaching.done)
+            highlight = notes.index(coaching.fix[0]) if coaching.fix is not None else None
+            draw_chord_targets(display, neck, notes, coaching.done, highlight)
             if coaching.fix is not None:
                 note, pixel = coaching.fix
-                draw_arrow(display, pixel, neck.target(note[0], note[1]))
+                draw_arrow(display, pixel, neck.target(note[0], note[1]), stop_short=target_radius(neck) + 6)
             draw_fingertips(display, neck, fingertips, self.parallax_on, self.debug_info)
-            score = chord_accuracy(notes, fingertips, neck, self.parallax_on)
+            score = int(100 * sum(coaching.done) / len(notes)) if notes else None
+        else:
+            self.stabilizer.reset()
 
         self._handle_strums(score, now)
         drift_hint = self.monitor.update(neck, size, now)
@@ -132,12 +136,16 @@ class ChordARApp:
             return False
         if key in CHORD_KEYS:
             self.chord = CHORD_KEYS[key]
+            self.stabilizer.reset()
         elif key == ord("]"):
             self.capo = min(self.capo + 1, MAX_CAPO)
+            self.stabilizer.reset()
         elif key == ord("["):
             self.capo = max(self.capo - 1, 0)
+            self.stabilizer.reset()
         elif key == ord("0"):
             self.capo = 0
+            self.stabilizer.reset()
         elif key == ord("o"):
             self.show_neck_overlay = not self.show_neck_overlay
         elif key == ord("h"):
@@ -166,6 +174,7 @@ class ChordARApp:
         if self.auto_advance and score == 100:
             chords = list(CHORD_KEYS.values())
             self.chord = chords[(chords.index(self.chord) + 1) % len(chords)]
+            self.stabilizer.reset()
 
     def _draw_strum(self, display, now):
         """The result of the latest strum, just under the header."""

@@ -1,12 +1,15 @@
 """Turns the finger positions into what a teacher would say: which notes are done and what to fix first."""
+import itertools
+import math
 from dataclasses import dataclass
 from typing import Optional
 
 from chordar.chords import STRING_NAMES
 from chordar.config import NUM_STRINGS
-from chordar.scoring import covered_notes
+from chordar.scoring import assign_fingers
 
 FINGER_NAMES = {1: "index", 2: "middle", 3: "ring", 4: "pinky"}  # chord-library finger number -> tracker name
+FINGER_NUMBERS = {name: number for number, name in FINGER_NAMES.items()}
 
 
 @dataclass
@@ -31,14 +34,34 @@ def _move(ds, df):
     return ", ".join(parts)
 
 
-def coach(notes, fingertips, neck, parallax=True):
+def _closest_pairing(missing, free, notes, neck):
+    """{note index: finger name}: the free fingers matched to the missing notes so that the total distance is smallest."""
+    count = min(len(missing), len(free))
+    if count == 0:
+        return {}
+    best, best_cost = {}, math.inf
+    for chosen_notes in itertools.permutations(missing, count):
+        for chosen_fingers in itertools.permutations(free, count):
+            cost = sum(math.dist(free[name], neck.target(notes[i][0], notes[i][1]))
+                       for i, name in zip(chosen_notes, chosen_fingers))
+            if cost < best_cost:
+                best, best_cost = dict(zip(chosen_notes, chosen_fingers)), cost
+    return best
+
+
+def coach(notes, fingertips, neck, parallax=True, stabilizer=None):
     """
     notes: [(string_idx, fret, finger)] the chord needs. fingertips: name -> pixel. Returns a Coaching: which
-    notes are covered (same rule as the score), and one message about the first finger (in finger order)
-    that is not where it should be. Screen directions are used: the nut is on the left and the low E on top.
+    notes are covered (same rule as the score, steadied by `stabilizer` if given), and one message about the first
+    note (in the library's finger order) that is not covered. The finger to move is the one the free fingers' best
+    pairing with the missing notes gives (smallest total distance), whichever finger the chord library suggests:
+    people finger chords differently. Screen directions are used:
+    the nut is on the left and the low E on top.
     """
-    located = {name: neck.locate(x, y, parallax) for name, (x, y) in fingertips.items()}
-    done = covered_notes(notes, fingertips, neck, parallax)
+    assigned = assign_fingers(notes, fingertips, neck, parallax)
+    done = [i in assigned for i in range(len(notes))]
+    if stabilizer is not None:
+        done = stabilizer.update(done)
     if not notes:
         return Coaching(done, "Open strings: just strum", perfect=True)
     if all(done):
@@ -46,17 +69,17 @@ def coach(notes, fingertips, neck, parallax=True):
     if not fingertips:
         return Coaching(done, "Place your fretting hand on the neck")
 
-    for (s, f, finger), ok in sorted(zip(notes, done), key=lambda item: item[0][2]):
-        if ok:
-            continue
-        name = FINGER_NAMES.get(finger)
-        label = f"Finger {finger}"
+    free = {name: point for name, point in fingertips.items() if name not in assigned.values()}
+    missing = sorted((i for i in range(len(notes)) if not done[i]), key=lambda i: notes[i][2])
+    pairing = _closest_pairing(missing, free, notes, neck)   # which free finger goes to which missing note
+    for i in missing:
+        s, f, library_finger = notes[i]
         where = f"string {NUM_STRINGS - s} ({STRING_NAMES[s]}), fret {f}"
-        if name not in fingertips:
-            return Coaching(done, f"{label}: put it on {where}")
-        hit = located[name]
-        pixel = fingertips[name]
+        if i not in pairing:
+            return Coaching(done, f"Finger {library_finger}: put it on {where}")
+        pixel, number = free[pairing[i]], FINGER_NUMBERS[pairing[i]]
+        hit = neck.locate(pixel[0], pixel[1], parallax)
         if hit is None:
-            return Coaching(done, f"{label}: bring it onto the neck, {where}", fix=((s, f, finger), pixel))
-        return Coaching(done, f"{label}: {_move(hit[0] - s, hit[1] - f)}", fix=((s, f, finger), pixel))
+            return Coaching(done, f"Finger {number}: bring it onto the neck, {where}", fix=(notes[i], pixel))
+        return Coaching(done, f"Finger {number}: {_move(hit[0] - s, hit[1] - f)}", fix=(notes[i], pixel))
     return Coaching(done, "Perfect!", perfect=True)

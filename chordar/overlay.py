@@ -58,28 +58,42 @@ def draw_capo(display, neck, capo):
     cv2.polylines(display, [bar], True, (255, 255, 255), 2)
 
 
-def draw_chord_targets(display, neck, notes, done=None):
-    """Yellow dots, numbered with the finger, where each fretted note goes; a note that is covered turns green with a check."""
+def target_radius(neck):
+    """Radius of a chord dot: about 40% of the string gap, so that dots on neighbouring strings do not overlap."""
+    return int(np.clip(0.42 * neck.string_gap_px(), 5, 11))
+
+
+def draw_chord_targets(display, neck, notes, done=None, highlight=None):
+    """
+    Yellow dots, numbered with the finger the chord library suggests, where each fretted note goes; a note that is
+    covered turns green with a check. The note `highlight` (an index) gets an orange ring: it is where the arrow points.
+    """
+    radius = target_radius(neck)
     for i, (string_idx, fret, finger) in enumerate(notes):
         x, y = neck.target(string_idx, fret)
-        if done is not None and done[i]:
-            cv2.circle(display, (x, y), 10, (0, 200, 0), -1)
-            cv2.circle(display, (x, y), 10, (255, 255, 255), 2)
-            cv2.polylines(display, [np.array([(x - 5, y), (x - 1, y + 4), (x + 6, y - 5)], np.int32)], False,
-                          (255, 255, 255), 2)
-        else:
-            cv2.circle(display, (x, y), 10, (0, 255, 255), -1)
-            cv2.circle(display, (x, y), 10, (255, 255, 255), 2)
-            cv2.putText(display, str(finger), (x - 7, y + 7), FONT, 0.7, (0, 0, 0), 2)
+        covered = done is not None and done[i]
+        cv2.circle(display, (x, y), radius, (0, 200, 0) if covered else (0, 255, 255), -1)
+        cv2.circle(display, (x, y), radius, (255, 255, 255), 2)
+        if covered:
+            k = max(radius // 2, 2)
+            cv2.polylines(display, [np.array([(x - k, y), (x - k // 3, y + k * 2 // 3), (x + k * 3 // 4, y - k * 2 // 3)], np.int32)],
+                          False, (255, 255, 255), 2)
+        elif radius >= 8:
+            cv2.putText(display, str(finger), (x - radius // 3, y + radius // 2 - 1), FONT, 0.07 * radius, (0, 0, 0), 2)
+        if i == highlight:
+            cv2.circle(display, (x, y), radius + 5, (0, 140, 255), 3)
 
 
-def draw_arrow(display, start, end):
-    """Arrow from a fingertip to the note it should cover."""
+def draw_arrow(display, start, end, stop_short=0):
+    """Arrow from a fingertip to the note it should cover, ending `stop_short` pixels before the note's center."""
     length = np.hypot(end[0] - start[0], end[1] - start[1])
-    if length > 12:
+    if length > 12 + stop_short:
+        end = (start[0] + (end[0] - start[0]) * (length - stop_short) / length,
+               start[1] + (end[1] - start[1]) * (length - stop_short) / length)
+        length -= stop_short
         # the arrow head has a fixed size in pixels: a head proportional to a long arrow would be enormous
-        cv2.arrowedLine(display, tuple(int(v) for v in start), tuple(int(v) for v in end), (0, 165, 255), 3,
-                        tipLength=min(0.25, 18 / length))
+        cv2.arrowedLine(display, tuple(int(v) for v in start), tuple(int(v) for v in end), (0, 140, 255), 3,
+                        tipLength=min(0.25, 14 / length))
 
 
 def draw_fingertips(display, neck, fingertips, parallax, debug=False):

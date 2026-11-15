@@ -36,6 +36,8 @@ NECK_LENGTH_MM = 325.0                           # nut line -> fret 12 line (hal
 # Where a finger presses, relative to what MediaPipe reports (measured on one user's recording, see the README):
 CONTACT_BACK = 0.4        # the touch point is this fraction of the way from the fingertip landmark toward its last joint
 STRING_TOLERANCE = 0.65   # a finger covers a note if it is within this many string gaps of the string
+NOTE_ON_FRAMES = 3        # a note turns green after being covered this many frames in a row ...
+NOTE_OFF_FRAMES = 4       # ... and stays green until it has been missed this many frames in a row
 FRET_BEHIND = 0.25        # ... and within the fret space or this fraction of it past its wire (players press behind the wire)
 
 MAX_HANDS = 2            # hands MediaPipe may track; 2 lets the program pick the fretting hand but costs ~14 ms per frame
