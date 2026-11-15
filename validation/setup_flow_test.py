@@ -63,6 +63,16 @@ def main():
           f"{placement.IDEAL_CENTER[1]:.3f} vs {expected_center[0]:.3f}, {expected_center[1]:.3f})",
           abs(placement.IDEAL_CENTER[0] - expected_center[0]) < 0.01 and abs(placement.IDEAL_CENTER[1] - expected_center[1]) < 0.01)
 
+    # the warning for too little light: the frets are found while the wires are in view, and not when they are not
+    for _ in range(30):
+        tracker.update(photo)
+    check("with the fret wires in view the frets are reported visible", tracker.frets_visible)
+    dim = (photo.astype(np.float32) * 0.01 + 100).astype(np.uint8)   # almost no contrast left: no wires to see
+    for i in range(10):   # the fret fit alone, on the corners the tracker had (the neck itself is not what is tested here)
+        tracker._frame_index = 3 * i
+        tracker._refine(dim, tracker.reference.corners)
+    check("with the wires washed out the app is told the frets are hard to see", not tracker.frets_visible)
+
     # the app: no photo given -> the set-up runs; ESC at the photo -> the app quits cleanly
     with mock.patch.object(app_module, "capture_reference", return_value=None), mock.patch.object(app_module, "open_window"), \
             mock.patch.object(app_module.cv2, "destroyAllWindows"):

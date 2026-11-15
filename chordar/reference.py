@@ -23,6 +23,7 @@ from chordar.placement import (MIN_STRING_GAP, alignment_metrics, evaluate, ligh
                                set_reference_distance)
 
 WINDOW = "ChordAR reference"
+MIN_VISIBLE_FRETS = 10   # fewer fret wires than this found in the photo: the light is too poor to see the frets
 _EDGE = "string" if config.MARKER_PLACEMENT == "outer_strings" else "edge of the fretboard"
 # in the order TL, TR, BR, BL, as the neck looks on the (mirrored) screen: nut on the left, low E string on top
 PROMPTS = (f"1/4  NUT, at the low E {_EDGE} (top)",
@@ -108,6 +109,9 @@ def click_corners(frame):
             bounds = snapped[1]["fret_bounds"] if use_snap and snapped[1] is not None else None
             draw_neck(shown, Fretboard(*[tuple(map(float, c)) for c in chosen], fret_bounds=bounds))
             info = snapped[1]
+            if info is None or info["matched"] < MIN_VISIBLE_FRETS:
+                seen = 0 if info is None else info["matched"]
+                _text(shown, f"Only {seen} of 12 frets are visible: more light on the neck, then T for a new photo", 126, (0, 165, 255))
             if info is None:
                 _text(shown, "No fret wires found: using your clicks as they are", 94, (0, 165, 255))
             elif use_snap:

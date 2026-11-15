@@ -55,6 +55,14 @@ the hand as the camera sees it, and what the app corrects (the shift that all th
 about 20 degrees *above* it only about 60% (the fingers read a whole string off). The photo screen and the drift warning say
 "The camera is above the neck: lower the notebook (or raise the guitar)" when that happens.
 
+## Lighting
+
+The frets must be visible: the program finds the fret wires in the photo and in the live image to place the grid, so the
+light has to show them (an even light on the neck, not behind the guitar, not a dark room). The photo screen warns if the light
+is too dark, too bright or from behind, and says how many of the 12 frets it can see ("Only 7 of 12 frets are visible: more
+light on the neck"); during play a banner says "Frets hard to see: put more light on the neck" if the wires are lost for
+about a second.
+
 ## Features
 
 - **Marker-free neck tracking from one photo.** Features of the photo's neck region are matched to each frame

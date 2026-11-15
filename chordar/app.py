@@ -204,6 +204,8 @@ class ChordARApp:
         if neck is None:
             draw_banner(display, "Neck not found: hold it in the outline of the photo (C: new photo)" if self.markerless
                         else "Show all 4 markers to the camera", RED)
+        elif self.markerless and not getattr(self.markers, "frets_visible", True):
+            draw_banner(display, "Frets hard to see: put more light on the neck (C: new photo)", ORANGE)
         elif drift_hint is not None:
             draw_banner(display, f"{drift_hint} (C: " + ("new photo)" if self.markerless else "recalibrate)"), ORANGE)
         elif coaching is not None:

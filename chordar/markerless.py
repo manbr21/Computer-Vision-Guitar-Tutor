@@ -33,6 +33,7 @@ FULL_SEARCH_EVERY = 6   # ... except every this many matches, which look at the 
 FRET_REFIT_EVERY = 3     # the fret wires are looked for in the live frame every this many frames
 FRET_SMOOTH = 0.25       # weight of each new fit in the running fret positions
 FRET_MAX_RMS_PX = 3.0    # a fit that misses the wires by more than this is ignored
+FRET_FAILURES_BEFORE_WARNING = 7   # fits in a row (one every 3 frames, about 0.7 s) without finding the wires
 FRET_MAX_JUMP = 0.05     # ... and so is one that moves the nut or fret 12 by more than this fraction of the neck at once
 HOLD_FRAMES = 8         # a neck that cannot be found keeps its last position this many frames
 FLOW_POINTS = 300       # corner points followed from one frame to the next (optical flow)
@@ -142,6 +143,7 @@ class MarklessTracker:
         self._params = None          # the last fit's (t0, s, k), the starting point of the next one
         self._fit = None             # running (t_nut, t_12, fret bounds) fitted to the wires of the live frames
         self.refined = None          # (corners, fret bounds) with the live fit applied; None until a fit succeeded
+        self._fit_failures = 0       # fret fits in a row that found too few wires
         self.inliers = 0       # inliers of the last successful match, for debugging
         self.last_matched = self.last_followed = None
         self.fresh_corners = {}  # kept for the recorder; this tracker has no per-frame ground truth
@@ -235,6 +237,11 @@ class MarklessTracker:
                 and SIDES_RANGE[0] <= sides <= SIDES_RANGE[1]
                 and squareness <= MAX_SKEW_COS)
 
+    @property
+    def frets_visible(self):
+        """False when the last fret fits (about 2 s of them) could not find the wires: the light is not enough to see the frets."""
+        return self._fit_failures < FRET_FAILURES_BEFORE_WARNING
+
     @staticmethod
     def _fit_ok(info):
         return info is not None and info["fret_bounds"] is not None and info["rms_px"] <= FRET_MAX_RMS_PX
@@ -249,6 +256,7 @@ class MarklessTracker:
             snapped, info = snap_corners(frame, corners, self._params)
             if not self._fit_ok(info) and self._params is not None:
                 snapped, info = snap_corners(frame, corners)   # the quick fit failed or slipped: search again
+            self._fit_failures = 0 if self._fit_ok(info) else self._fit_failures + 1
             if self._fit_ok(info):
                 length = float(np.linalg.norm(((corners[3] - corners[0]) + (corners[2] - corners[1])) / 2))
                 t_nut = info["nut_shift_px"] / length

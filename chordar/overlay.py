@@ -58,9 +58,11 @@ def draw_capo(display, neck, capo):
     cv2.polylines(display, [bar], True, (255, 255, 255), 2)
 
 
-def target_radius(neck):
-    """Radius of a chord dot: half the string gap, so that dots on neighbouring strings touch but do not overlap."""
-    return int(np.clip(0.5 * neck.string_gap_px(), 6, 11))
+TARGET_RADIUS = 10   # radius of a chord dot in pixels: it stays readable from a distance, whatever the size of the neck
+
+
+def target_radius(neck=None):
+    return TARGET_RADIUS
 
 
 def draw_chord_targets(display, neck, notes, done=None, highlight=None):
@@ -69,7 +71,7 @@ def draw_chord_targets(display, neck, notes, done=None, highlight=None):
     missing and green once it is covered. The note `highlight` (an index) gets an orange ring: it is where the arrow points.
     """
     radius = target_radius(neck)
-    scale, thickness = 0.06 * radius, 1 if radius < 9 else 2
+    scale, thickness = 0.65, 2
     for i, (string_idx, fret, finger) in enumerate(notes):
         x, y = neck.target(string_idx, fret)
         covered = done is not None and done[i]
