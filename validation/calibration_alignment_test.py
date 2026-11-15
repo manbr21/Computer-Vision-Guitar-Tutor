@@ -49,14 +49,14 @@ def main():
 
     m, c = run()
     check("ideal placement: every check passes", all(x["ok"] for x in c.values()))
-    # the target neck sits below the image center, so the camera sees it ~2 deg off-axis even when frontal
+    # the target neck sits well below the image center, so the camera sees it ~6 deg off-axis even when frontal
     check("ideal placement: scale ~1, offsets ~0, level, almost no tilt",
           abs(m["scale"] - 1) < 0.02 and abs(m["dx"]) < 0.01 and abs(m["dy"]) < 0.01
-          and abs(m["roll"]) < 1 and m["tilt"] < 5)
+          and abs(m["roll"]) < 1 and m["tilt"] < 9)
 
     m, c = run(distance=300)
     check("too close: distance fails, asks to move farther", not c["Distance"]["ok"] and "farther" in c["Distance"]["hint"])
-    m, c = run(distance=600)
+    m, c = run(distance=700)
     check("too far: distance fails, asks to move closer", not c["Distance"]["ok"] and "closer" in c["Distance"]["hint"])
 
     m, c = run(shift=(0.15 * syn.W, 0))

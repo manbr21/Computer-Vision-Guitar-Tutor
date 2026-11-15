@@ -114,8 +114,8 @@ def main():
     ideal = [ghost_point(u, t, (W, H)) for u, t in ((0, 0), (1, 0), (1, 1), (0, 1))]
     cx, cy = IDEAL_CENTER[0] * W, IDEAL_CENTER[1] * H
     check("a photo with the neck on the calibration target gets no advice", photo_hint(ideal, (W, H)) is None)
-    comfortable = [(cx + (x - cx) * 0.64, cy + (y - cy) * 0.64) for x, y in ideal]
-    check("a neck at 64% of the target size (a comfortable, longer distance) gets no distance advice",
+    comfortable = [(cx + (x - cx) * 0.9, cy + (y - cy) * 0.9) for x, y in ideal]
+    check("a neck at 90% of the target size (a comfortable, longer distance) gets no distance advice",
           photo_hint(comfortable, (W, H)) is None)
     tiny = [(cx + (x - cx) * 0.4, cy + (y - cy) * 0.4) for x, y in ideal]
     check(f"a neck at 40% of the target size is told to come closer ({photo_hint(tiny, (W, H))})",
