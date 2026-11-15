@@ -38,10 +38,10 @@ taking a new one (it only works with similar light and a guitar held in a simila
 | `C` | take a new photo (ESC there keeps the current one) |
 | `O` | hide / show the neck markings (outline, frets, strings); the fingers and the chord targets stay |
 | `H` | list of the keys |
-| `D` | technical info: pose, parallax, fingertip labels, FPS, microphone level |
-| `P` | toggle the parallax correction |
-| `X` | swap between the two camera-pose solutions |
 | `ESC` | quit |
+
+Keys for tuning, not shown in the app's help: `D` technical panel (pose, parallax, fingertip labels, FPS, microphone
+level), and while it is on, `P` turns the parallax correction on and off and `X` swaps between the two camera-pose solutions.
 
 Options: `--camera N`, `--no-audio` (without the microphone), `--reference FILE`, `--record FOLDER`,
 `--markers` (ArUco markers instead of the photo, see below), `--debug`.

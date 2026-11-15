@@ -21,9 +21,9 @@ log = logging.getLogger(__name__)
 
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
-HELP_LINES = ["1-8   choose the chord", "[ ]   capo up / down (0 removes it)", "A     auto-advance on a perfect strum", "O     hide / show the neck markings",
-              "C     take a new reference photo", "P     parallax fix on/off", "X     swap camera pose",
-              "D     technical info", "H     this help", "ESC   quit"]
+HELP_LINES = ["1-8   choose the chord", "[ ]   capo up / down (0 removes it)", "A     auto-advance on a perfect strum",
+              "O     hide / show the neck lines", "C     take a new photo", "H     this help", "ESC   quit"]
+# keys that are not listed in the help, for tuning and debugging: D shows the technical panel, which lists P and X
 LAST_REFERENCE = "references/last.npz"  # the photo of the latest set-up, to reuse with --reference
 STRUM_BANNER_S = 2.0  # how long the result of a strum stays on screen
 WHITE, GREEN, ORANGE, RED, GRAY = (255, 255, 255), (0, 255, 0), (0, 165, 255), (0, 0, 255), (200, 200, 200)
@@ -205,7 +205,7 @@ class ChordARApp:
 
     def _draw_help(self, display):
         pad, line_h = 12, 24
-        width = 330
+        width = 370
         height = len(HELP_LINES) * line_h + 2 * pad
         x, y = 20, display.shape[0] - height - 20
         shade = display.copy()
@@ -223,6 +223,7 @@ class ChordARApp:
             if angles is not None:
                 status += f" | camera angle {angles[0]:.0f} deg"
             put_text_bg(display, status, (20, 160), 0.5, WHITE, thickness=1)
+        put_text_bg(display, "P parallax fix on/off, X swap pose", (20, 212), 0.5, GRAY, thickness=1)
         fps = 1.0 / (time.time() - now) if time.time() != now else 0.0
         put_text_bg(display, f"FPS: {fps:.1f}", (size[0] - 130, size[1] - 20), 0.7, GREEN)
         if self.audio is not None:
