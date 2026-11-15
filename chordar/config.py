@@ -43,7 +43,7 @@ COMMON_FRET_SHIFT = 0.0   # which absorbs what changes with the camera height an
 NOTE_ON_FRAMES = 3        # a note turns green after being covered this many frames in a row ...
 NOTE_OFF_FRAMES = 4       # ... and stays green until it has been missed this many frames in a row
 
-MAX_HANDS = 2            # hands MediaPipe may track; 2 lets the program pick the fretting hand but costs ~14 ms per frame
+MAX_HANDS = 1            # hands MediaPipe may track: only the fretting hand is looked at (see hands.fretting_hand_region)
 FINGER_HEIGHT_MM = 10.0   # fingertip height above the fretboard surface when pressing
 CAMERA_HFOV_DEG = 65.0    # horizontal field of view of the webcam (laptop webcams: ~60-78)
 MAX_PARALLAX_MM = 25.0    # ignore corrections larger than this (degenerate pose)

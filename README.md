@@ -55,7 +55,8 @@ Options: `--camera N`, `--no-audio` (without the microphone), `--reference FILE`
 - **Frets drawn where the wires really are.** The photo's fret wires are found and the nut, the 12th fret and the
   spacing (with the foreshortening along the neck) are fitted to the fret formula; during play the same fit is repeated
   on the live frames, so the grid stays on the wires when you move closer or tilt the guitar.
-- **Fretting-hand tracking** with MediaPipe Hands.
+- **Fretting-hand tracking** with MediaPipe Hands, only on the part of the frame around the first frets and the neck, so the
+  strumming hand is never looked at (and the hand tracker costs ~17 ms instead of ~33 ms per frame).
 - **Parallax correction (off by default):** a fingertip is ~1 cm above the board, so an oblique camera reads it shifted
   across the neck. The camera pose is estimated from the neck corners and the touch point is shifted back; `P` turns it
   on (with `D`). It is off because the two possible pose solutions can be mixed up at small tilts and then it makes things worse
@@ -143,7 +144,8 @@ Run from the repository root; each one exits with status 1 if a check fails.
 python validation/setup_flow_test.py             # the photo set-up and the app that uses it
 python validation/frets_test.py                  # fret-wire snapping on a synthetic tapered neck
 python validation/reference_test.py              # marker-free tracker on a synthetic textured scene
-python validation/scoring_test.py                # scoring tolerances, one finger per note
+python validation/scoring_test.py                # each finger on its own note, the shared shift, the steadying
+python validation/hands_region_test.py           # the region where the fretting hand is looked for
 python validation/coaching_test.py               # finger coaching messages
 python validation/capo_test.py                   # virtual capo: shifted notes, score, keys and drawing
 python validation/audio_test.py                  # strum detector on synthetic sound, and its use by the app
@@ -174,8 +176,8 @@ at 30 deg; with it, it stays at ~100%.
   neck may not be found (take a new photo with C).
 - Tracking is validated against ArUco markers on six recorded sessions of one user, one guitar and one laptop.
 - With strong tilt along the neck or a neck far from the image center the frets can drift.
-- Tracking two hands (`MAX_HANDS = 2` in `config.py`, needed to pick the fretting hand) costs ~14 ms more per frame
-  than one; set it to 1 for speed if only the fretting hand is in view.
+- Only the hand in the region around the first frets is tracked (`MAX_HANDS = 1`): a left-handed player, or a fretting hand
+  that leaves that region (past fret 9 or so), is not seen.
 - The target outline assumes the nut on the left of the (mirrored) screen; left-handed layouts are not supported.
 
 ## Credits and licenses

@@ -6,7 +6,7 @@ import cv2
 
 from chordar.calibration import run_calibration
 from chordar.chords import MAX_CAPO, fretted_notes
-from chordar.hands import FingertipTracker
+from chordar.hands import FingertipTracker, fretting_hand_region
 from chordar.markerless import MarklessTracker
 from chordar.markers import MarkerTracker
 from chordar.coaching import coach
@@ -97,7 +97,8 @@ class ChordARApp:
     def process_frame(self, frame, now):
         """Detects the neck and fingers in a camera frame and returns the image to show. now: frame start time."""
         display, neck = self.markers.track(frame, self.pose_variant, draw=self.show_neck_overlay)
-        fingertips = self.hands.track(frame, neck.to_image(0.5, 0.2) if neck is not None else None)
+        region = fretting_hand_region(neck, (display.shape[1], display.shape[0])) if neck is not None else None
+        fingertips = self.hands.track(frame, neck.to_image(0.5, 0.2) if neck is not None else None, region)
         size = (display.shape[1], display.shape[0])
 
         score, coaching = None, None
