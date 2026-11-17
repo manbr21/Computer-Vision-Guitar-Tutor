@@ -35,15 +35,15 @@ def _move(strings, spaces):
     return ", ".join(parts)
 
 
-def coach(notes, fingertips, neck, parallax=True, stabilizer=None):
+def coach(notes, fingertips, neck, parallax=True, stabilizer=None, bias=None):
     """
     notes: [(string_idx, fret, finger)] the chord needs; each note belongs to one finger. fingertips: name -> pixel.
     Returns a Coaching: which notes are covered by their own finger (steadied by `stabilizer` if given), and one message
     about the first note, in finger order, that is not covered. Screen directions are used: the nut is on the left
     and the low E on top.
     """
-    offsets = finger_offsets(notes, fingertips, neck, parallax)
-    done = covered_notes(notes, fingertips, neck, parallax)
+    offsets = finger_offsets(notes, fingertips, neck, parallax, bias)
+    done = covered_notes(notes, fingertips, neck, parallax, bias)
     if stabilizer is not None:
         done = stabilizer.update(done)
     if not notes:

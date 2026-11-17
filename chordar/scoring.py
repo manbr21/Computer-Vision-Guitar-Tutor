@@ -13,11 +13,12 @@ from chordar import config
 FINGER_NAMES = {1: "index", 2: "middle", 3: "ring", 4: "pinky"}
 
 
-def finger_offsets(notes, fingertips, neck, parallax=True):
+def finger_offsets(notes, fingertips, neck, parallax=True, bias=None):
     """
     {note index: (strings, fret spaces)}: where the finger that belongs on each (string_idx, fret, finger) note is,
     relative to the note (+ strings = toward the high e, + fret spaces = toward the body; 0 = centre of the fret space).
-    Notes whose finger is not tracked are left out.
+    Notes whose finger is not tracked are left out. `bias` ({string_idx: strings}, see chords.reading_bias) is taken out of the
+    reading of the finger on those strings.
     """
     lo, hi = config.STRING_U_RANGE
     offsets = {}
@@ -27,7 +28,7 @@ def finger_offsets(notes, fingertips, neck, parallax=True):
             continue
         u, t = neck.to_neck_corrected(point[0], point[1], parallax)
         near_wire, far_wire = neck.fret_bounds[fret - 1], neck.fret_bounds[fret]
-        offsets[i] = ((u - lo) / (hi - lo) * (config.NUM_STRINGS - 1) - string_idx,
+        offsets[i] = ((u - lo) / (hi - lo) * (config.NUM_STRINGS - 1) - string_idx - (bias or {}).get(string_idx, 0.0),
                       (t - (near_wire + far_wire) / 2) / (far_wire - near_wire))
     return offsets
 
@@ -44,12 +45,12 @@ def common_shift(offsets):
     return np.clip(mean, [-string_limit, -config.COMMON_FRET_SHIFT], [string_limit, config.COMMON_FRET_SHIFT])
 
 
-def covered_notes(notes, fingertips, neck, parallax=True):
+def covered_notes(notes, fingertips, neck, parallax=True, bias=None):
     """
     One bool per (string_idx, fret, finger) note: is it covered by its own finger? After the shared shift, the finger
     must be within STRING_TOLERANCE string gaps of the string and in the fret space (or FRET_BEHIND of it past the wire).
     """
-    offsets = finger_offsets(notes, fingertips, neck, parallax)
+    offsets = finger_offsets(notes, fingertips, neck, parallax, bias)
     shift = common_shift(offsets)
     done = [False] * len(notes)
     for i, (strings, spaces) in offsets.items():
@@ -58,11 +59,11 @@ def covered_notes(notes, fingertips, neck, parallax=True):
     return done
 
 
-def chord_accuracy(notes, fingertips, neck, parallax=True):
+def chord_accuracy(notes, fingertips, neck, parallax=True, bias=None):
     """Percent (0-100) of the notes covered (see covered_notes), or None when the chord has no fretted notes."""
     if not notes:
         return None
-    return int(100 * sum(covered_notes(notes, fingertips, neck, parallax)) / len(notes))
+    return int(100 * sum(covered_notes(notes, fingertips, neck, parallax, bias)) / len(notes))
 
 
 class NoteStabilizer:

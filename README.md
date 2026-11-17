@@ -184,6 +184,11 @@ at 30 deg; with it, it stays at ~100%.
   user. The chord library follows that user's fingering (Dm with the ring finger on B3, Em with index and middle, G with
   middle on the low E, index on A and pinky on the high e); the app judges each note by its own finger, so a different
   fingering of the same chord is counted as wrong.
+- For three chords the hand tracker reads some fingers the same wrong way every time (the rest of the finger hides the tip): the middle
+  on the e string of D about half a string toward the bass, the index on the G of D low, the ring on the B and the index on the e of
+  Dm, the ring on the D of E. `chords.READING_BIAS` takes these out; it was measured on five recordings of one user and, left out one
+  session at a time, raised the notes covered in D from 75% to 93% and in Dm from 87% to 93% (overall 84% to 88%, and the false
+  accepts of a finger a string off fell from 24% to 19%). It needs checking on other hands.
 - The reading of the fingers is accurate to about half a string (the strings are only ~14-16 px apart at the comfortable
   playing distance), which is the limit of what the app can tell apart. On a recording of the eight chords held still, with
   the camera ~20 degrees from the neck, 88% of the notes were covered by their own finger (74% of the frames had the whole

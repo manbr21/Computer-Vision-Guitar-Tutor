@@ -5,7 +5,7 @@ import time
 import cv2
 
 from chordar.calibration import run_calibration
-from chordar.chords import MAX_CAPO, fretted_notes
+from chordar.chords import MAX_CAPO, fretted_notes, reading_bias
 from chordar.hands import FingertipTracker, fretting_hand_region
 from chordar.markerless import MarklessTracker
 from chordar.markers import MarkerTracker
@@ -104,7 +104,7 @@ class ChordARApp:
         score, coaching = None, None
         if neck is not None:
             notes = fretted_notes(self.chord, self.capo)
-            coaching = coach(notes, fingertips, neck, self.parallax_on, self.stabilizer)
+            coaching = coach(notes, fingertips, neck, self.parallax_on, self.stabilizer, reading_bias(self.chord))
             if self.show_neck_overlay:
                 draw_neck(display, neck)
             if self.capo:

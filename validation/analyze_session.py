@@ -19,7 +19,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chordar import config
-from chordar.chords import STRING_NAMES, fretted_notes
+from chordar.chords import STRING_NAMES, fretted_notes, reading_bias
 from chordar.geometry import Fretboard
 from chordar.hands import fretting_hand_region
 from chordar.markerless import MarklessTracker, NeckReference
@@ -97,14 +97,14 @@ def analyse(frames):
                     stabilizer.reset()
                     continue
                 neck, points = neck_of(d), touch_points(d)
-                covered = covered_notes(notes, points, neck, False)
+                covered = covered_notes(notes, points, neck, False, reading_bias(chord))
                 shown = stabilizer.update(covered)
                 values.append(np.mean(shown))
                 if all(shown) and first_full is None:
                     first_full = d["i"] - group[0]["i"]
                 if s >= settle:
                     steady_notes.append(covered)
-                    offs = finger_offsets(notes, points, neck, False)
+                    offs = finger_offsets(notes, points, neck, False, reading_bias(chord))
                     if len(offs) == len(notes):
                         shift = common_shift(offs)
                         shifts.append(shift[0])

@@ -15,6 +15,18 @@ CHORD_LIBRARY = {
 }
 
 
+# Where the hand tracker reads some fingers for these chords, in strings, away from where they really are (+ = toward the high e):
+# the same in five recordings of one user, so it is taken out before the fingers are compared with their notes. Keyed by string.
+# D: the index on the G reads low and the middle on the e reads high (the rest of the finger hides the tip); Dm: the ring on the B
+# high and the index on the e low; E: the ring on the D high. Only these were large and the same from session to session.
+READING_BIAS = {"D": {3: 0.36, 5: -0.50}, "Dm": {4: -0.35, 5: 0.39}, "E": {2: -0.31}}
+
+
+def reading_bias(chord):
+    """{string_idx: strings} to take out of the reading of the finger on each string of this chord (empty if none)."""
+    return READING_BIAS.get(chord, {})
+
+
 MAX_CAPO = 7  # highest capo fret offered; with the highest chord note (fret 3) it stays on the 12-fret neck
 
 

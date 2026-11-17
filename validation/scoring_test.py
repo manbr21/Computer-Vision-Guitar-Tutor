@@ -66,6 +66,16 @@ def main():
     moved["index"] = (two["index"][0], two["index"][1] + gap)
     check("a two-note chord with one finger a whole string off does not score 100%", chord_accuracy(em, moved, neck, False) < 100)
 
+    # the reading bias: fingers the tracker reads 0.6 of a string off still cover its note once that is taken out
+    d_notes = fretted_notes("D")                      # G2 index (string 3), B3 ring (4), e2 middle (5)
+    d_tips = {names[finger]: neck.target(s, f) for s, f, finger in d_notes}
+    d_tips["middle"] = (d_tips["middle"][0], d_tips["middle"][1] - 0.62 * gap)         # read 0.6 string toward the bass
+    d_tips["index"] = (d_tips["index"][0], d_tips["index"][1] + 0.56 * gap)            # and the index 0.55 of a string low
+    check("without the bias a finger read that far off is not covered", covered_notes(d_notes, d_tips, neck, False) != [True, True, True])
+    from chordar.chords import reading_bias
+    check("with the bias of the D chord all its notes are covered", covered_notes(d_notes, d_tips, neck, False, reading_bias("D")) == [True, True, True])
+    check("a chord without a bias is read as it is", reading_bias("Am") == {})
+
     # the steadying of the covered flags
     st = NoteStabilizer(3, 4)
     shown = [st.update(x)[0] for x in [[True]] * 2 + [[False]] + [[True]] * 3]
