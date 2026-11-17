@@ -15,6 +15,7 @@ from chordar.overlay import (draw_arrow, draw_banner, draw_capo, draw_chord_diag
 from chordar.placement import PlacementMonitor
 from chordar.reference import capture_reference
 from chordar.scoring import NoteStabilizer, corrected_points
+from chordar.zoom import NeckZoom
 from chordar.window import open_window, show
 
 log = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ log = logging.getLogger(__name__)
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
 HELP_LINES = ["1-8   choose the chord", "[ ]   capo up / down (0 removes it)", "A     auto-advance on a perfect strum",
-              "O     hide / show the neck lines", "C     take a new photo", "H     this help", "ESC   quit"]
+              "O     hide / show the neck lines", "Z     zoom on the neck and hand", "C     take a new photo", "H     this help", "ESC   quit"]
 # keys that are not listed in the help, for tuning and debugging: D shows the technical panel, which lists P and X
 LAST_REFERENCE = "references/last.npz"  # the photo of the latest set-up, to reuse with --reference
 STRUM_BANNER_S = 2.0  # how long the result of a strum stays on screen
@@ -53,6 +54,8 @@ class ChordARApp:
         self.last_score = None   # the accuracy shown in the latest frame, for the recorder
         self.last_strum = None   # (time, chord, capo, score or None) of the latest strum
         self.show_neck_overlay = True  # O: the markers, outline, frets and strings; off leaves only fingers and targets
+        self.zoom_view = False   # Z: the screen shows the neck and the hand enlarged (the detection still sees the whole frame)
+        self.zoom = NeckZoom()
         self.show_help = False   # H: list of the keys
         self.debug_info = False  # D: technical details (pose, parallax, fingertip labels, FPS, mic level)
 
@@ -120,6 +123,8 @@ class ChordARApp:
         else:
             self.stabilizer.reset()
 
+        if self.zoom_view and neck is not None:
+            display = self.zoom.apply(display, neck)   # after the drawing in the neck's coordinates, before the text on the screen
         self.last_score = score
         self._handle_strums(score, now)
         drift_hint = self.monitor.update(neck, size, now)
@@ -153,6 +158,9 @@ class ChordARApp:
             self.stabilizer.reset()
         elif key == ord("o"):
             self.show_neck_overlay = not self.show_neck_overlay
+        elif key == ord("z"):
+            self.zoom_view = not self.zoom_view
+            self.zoom.reset()
         elif key == ord("h"):
             self.show_help = not self.show_help
         elif key == ord("d"):

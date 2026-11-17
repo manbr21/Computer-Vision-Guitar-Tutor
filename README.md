@@ -38,6 +38,7 @@ taking a new one (it only works with similar light and a guitar held in a simila
 | `A` | auto-advance: a perfect strum moves to the next chord |
 | `C` | take a new photo (ESC there keeps the current one) |
 | `O` | hide / show the neck markings (outline, frets, strings); the fingers and the chord targets stay |
+| `Z` | zoom the screen on the neck and the hand (about 2x, display only: the detection always sees the whole frame) |
 | `H` | list of the keys |
 | `ESC` | quit |
 
@@ -165,6 +166,7 @@ python validation/frets_test.py                  # fret-wire snapping on a synth
 python validation/reference_test.py              # marker-free tracker on a synthetic textured scene
 python validation/scoring_test.py                # each finger on its own note, the shared shift, the steadying
 python validation/hands_region_test.py           # the region where the fretting hand is looked for
+python validation/zoom_test.py                   # the zoomed view and the limit of the live fret fit at the nut
 python validation/coaching_test.py               # finger coaching messages
 python validation/capo_test.py                   # virtual capo: shifted notes, score, keys and drawing
 python validation/audio_test.py                  # strum detector on synthetic sound, and its use by the app
@@ -194,7 +196,11 @@ at 30 deg; with it, it stays at ~100%.
   the camera ~20 degrees from the neck, 88% of the notes were covered by their own finger (74% of the frames had the whole
   chord); on another recording with the camera ~12 degrees from the neck, the chords not used to fit the constants scored
   98.7% with the earlier any-finger rule. In simulation a finger moved a whole string off is still accepted in about a
-  quarter of the frames (tolerance 0.5), and one moved a whole fret in 5%. The index finger on frets 1 and 2 is the least
+  quarter of the frames (tolerance 0.5; with the shared shift limited to 0.3 strings, 0.2 for two fingers, a hand moved a whole
+  string off is accepted in about 30% of the frames and one finger a string off in 17-23%; wider limits raised those to 46% and
+  28% for one point more of correct notes), and one moved a whole fret in 5%. Enlarging the hand before MediaPipe reads it
+  (1.5x, 2x) changed nothing (80% of the notes, same jitter): the limit is the model and the finger hiding its own tip, not the
+  pixels, so `Z` helps the player see the dots and does not help the detection. The index finger on frets 1 and 2 is the least
   reliable. A camera at the height of the neck or a little above works best.
 - The photo only works with light and distance similar to when it was taken; with much dimmer or backlit light the
   neck may not be found (take a new photo with C).
