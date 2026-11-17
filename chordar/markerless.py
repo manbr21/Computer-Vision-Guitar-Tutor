@@ -35,9 +35,9 @@ FRET_SMOOTH = 0.25       # weight of each new fit in the running fret positions
 FRET_MAX_RMS_PX = 3.0    # a fit that misses the wires by more than this is ignored
 FRET_FAILURES_BEFORE_WARNING = 7   # fits in a row (one every 3 frames, about 0.7 s) without finding the wires
 FRET_MAX_JUMP = 0.05     # ... and so is one that moves the nut or fret 12 by more than this fraction of the neck at once
-FRET_MAX_NUT_SHIFT = 0.02   # ... and one that puts the nut further than this fraction of the neck from the followed corners: the corners
+FRET_MAX_NUT_SHIFT = 0.012  # ... and one that puts the nut further than this fraction of the neck from the followed corners: the corners
                             # are tracked on the whole neck and stay on the nut, while fingers over the first frets drag a fit away
-FRET_MAX_12_SHIFT = 0.04    # (same for fret 12)
+FRET_MAX_12_SHIFT = 0.03    # (same for fret 12)
 HOLD_FRAMES = 8         # a neck that cannot be found keeps its last position this many frames
 FLOW_POINTS = 300       # corner points followed from one frame to the next (optical flow)
 FLOW_RANSAC_PX = 2.0

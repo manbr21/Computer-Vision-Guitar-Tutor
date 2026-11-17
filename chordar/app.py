@@ -124,7 +124,7 @@ class ChordARApp:
             self.stabilizer.reset()
 
         if self.zoom_view and neck is not None:
-            display = self.zoom.apply(display, neck)   # after the drawing in the neck's coordinates, before the text on the screen
+            display = self.zoom.apply(display, neck, self.capo)   # after the drawing in the neck's coordinates, before the text on the screen
         self.last_score = score
         self._handle_strums(score, now)
         drift_hint = self.monitor.update(neck, size, now)

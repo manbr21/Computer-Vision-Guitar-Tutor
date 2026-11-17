@@ -30,6 +30,11 @@ def main():
     check("the nut, fret 7 and the fingers below the neck are inside it",
           all(x0 <= x <= x1 and y0 <= y <= y1 for x, y in (neck.to_image(0.5, 0.0), neck.to_image(0.5, 0.6), neck.to_image(2.0, 0.2))))
     check("the picture is enlarged at least 1.5x", (1280 / (x1 - x0)) >= 1.5)
+    capo_box = zoom.box(neck, (1280, 720), 5)
+    check("with a capo on fret 5 the view moves along the neck, toward the body (the nut is out of it)",
+          capo_box[0] > x0 + 100 and not (capo_box[0] <= neck.to_image(0.5, 0.0)[0] <= capo_box[2]),)
+    check("... and the capo and fret 9 (its notes go up to capo + 4) are inside it",
+          all(capo_box[0] <= neck.to_image(0.5, t)[0] <= capo_box[2] for t in (neck.fret_bounds[5], neck.fret_bounds[9])))
     frame = np.zeros((720, 1280, 3), np.uint8)
     frame[300:320, 300:900] = 255
     out = zoom.apply(frame, neck)
