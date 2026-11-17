@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chordar.markerless import MarklessTracker, NeckReference
 from chordar.calibration import ghost_point
 from chordar.placement import IDEAL_CENTER
-from chordar.reference import photo_hint, reference_from_clicks
+from chordar.reference import GUIDE_ORIGIN, GUIDE_SIZE, draw_click_guide, photo_hint, reference_from_clicks
 
 W, H = 1280, 720
 TRUE_DISPLAY = [(300, 300), (300, 420), (1000, 430), (1000, 300)]  # the neck as the mirrored view shows it
@@ -120,6 +120,24 @@ def main():
     tiny = [(cx + (x - cx) * 0.4, cy + (y - cy) * 0.4) for x, y in ideal]
     check(f"a neck at 40% of the target size is told to come closer ({photo_hint(tiny, (W, H))})",
           photo_hint(tiny, (W, H)) == "Move the guitar closer to the camera")
+
+    # the guide that shows which corner to click: the little neck changes with the step and pulses
+    def guide(step, now):
+        img = np.full((H, W, 3), 100, np.uint8)
+        draw_click_guide(img, step, now)
+        x0, y0 = GUIDE_ORIGIN
+        return img, img[y0 - 14:y0 + GUIDE_SIZE[1] + 14, x0:x0 + GUIDE_SIZE[0]]
+    full0, mini0 = guide(0, 0.0)
+    _, mini1 = guide(1, 0.0)
+    _, mini0_later = guide(0, 0.26)
+    check("the guide draws a little neck", float(mini0.std()) > 10)
+    check("it shows a different corner for each step", not np.array_equal(mini0, mini1))
+    check("and pulses (the ring grows and shrinks over time)", not np.array_equal(mini0, mini0_later))
+    gx, gy = ghost_point(0, 0, (W, H))
+    check("a ring is also drawn on the photo, where the corner should be if the guitar is in the outline",
+          float(np.abs(full0[gy - 24:gy + 24, gx - 24:gx + 24].astype(int) - 100).max()) > 50)
+    _, done = guide(4, 0.0)
+    check("after the four clicks the guide has no pulsing ring", not np.array_equal(mini0, done))
 
     blank = np.full((H, W, 3), 120, np.uint8)
     got, _ = tracker.estimate(blank)

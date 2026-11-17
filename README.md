@@ -20,7 +20,8 @@ python -m chordar
 
 1. **Photo.** Hold the guitar as you will play it, inside the outline drawn on the screen, with your hand off the neck,
    and press SPACE. The screen warns if the light is too dark, too bright or from behind.
-2. **Four clicks** on the neck, in the order the screen asks (the nut at the low E and the high e string, then the
+2. **Four clicks** on the neck, in the order the screen asks (a small see-through neck in the corner of the screen shows the corner
+   to click next with a pulsing ring, and the same ring pulses on the photo where that corner should be) (the nut at the low E and the high e string, then the
    12th fret wire at the high e and the low E string). Click on the nut edge on the fretboard side and on the 12th fret
    wire; the program then finds the real fret wires in the photo and snaps your clicks onto them, so a few pixels of
    error do not matter (U switches back to your raw clicks). ENTER saves; T takes a new photo.
@@ -48,13 +49,13 @@ Options: `--camera N`, `--no-audio` (without the microphone), `--reference FILE`
 
 ## Where to put the notebook
 
-Put the notebook in front of you on something stable (a table, a stool, a chair) so that **the webcam is at the height of the
-neck or a little below it**, about 50-60 cm away, with the screen where you can see it. The finger positions are read from
-the hand as the camera sees it, and what the app corrects (the shift that all the fingers share) has a limit: with the camera
-10 to 20 degrees below the neck the eight chords were read 100% of the time once the fingers were in place, with the camera
-about 20 degrees *above* it only about 60% (the fingers read a whole string off). The photo screen says
-"Camera above the neck: lower the notebook" when the neck's edges show it clearly (it cannot always tell, so this is a guide: keep the
-notebook at the height of the neck).
+Rest the base of the notebook on something stable in front of you (a chair, a stool) at about the height of your thigh, 50-60 cm
+from the guitar, and **tilt the screen until the guitar fits the outline drawn on the photo screen**. That puts the webcam at the
+height of the neck or a little below it, which is what the finger reading needs: it is read from the hand as the camera sees it,
+and what the app corrects (the shift that all the fingers share) has a limit. With the camera 10 to 20 degrees below the neck
+the eight chords were read 100% of the time once the fingers were in place; with the camera about 20 degrees *above* it only
+about 60% (the fingers read a whole string off). The photo screen says "Camera above the neck: lower the notebook" when the
+edges of the neck show it clearly (it cannot always tell, so this is a guide).
 
 ## Lighting
 

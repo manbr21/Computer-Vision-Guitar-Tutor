@@ -7,14 +7,16 @@ Makes the reference photo for marker-free tracking: a photo of the guitar and th
 Then play with:  python -m chordar --reference references/mine.npz
 """
 import argparse
+import math
 import os
 import sys
+import time
 
 import cv2
 import numpy as np
 
 from chordar import config
-from chordar.calibration import draw_ghost
+from chordar.calibration import draw_ghost, ghost_point
 from chordar.geometry import Fretboard
 from chordar.frets import snap_corners
 from chordar.markerless import MarklessTracker, NeckReference
@@ -60,6 +62,61 @@ def _text(img, text, y, color=(255, 255, 255)):
     cv2.putText(img, text, (20, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
 
+GUIDE_ORIGIN, GUIDE_SIZE = (20, 130), (250, 78)   # where the little neck that shows the corner to click is drawn
+# the corners in the order they are clicked, in the neck's own coordinates (u across: 0 low E / top, 1 high e / bottom; t along: 0 nut / left)
+CORNER_ORDER = ((0, 0), (1, 0), (1, 1), (0, 1))
+
+
+def draw_click_guide(img, step, now=None):
+    """
+    A small see-through neck in the corner of the screen (nut on the left, low E on top, like the photo) with the corner to
+    click next marked by a pulsing ring, the ones already clicked in green; and a pulsing ring on the photo, where the
+    corner should be if the guitar is in the outline.
+    """
+    now = time.time() if now is None else now
+    pulse = 0.5 + 0.5 * math.sin(now * 6)
+    x0, y0 = GUIDE_ORIGIN
+    w, h = GUIDE_SIZE
+    pad = 22
+
+    def spot(u, t):
+        return int(x0 + pad + t * (w - 2 * pad)), int(y0 + 10 + u * (h - 20))
+
+    shade = img.copy()
+    cv2.rectangle(shade, (x0, y0 - 14), (x0 + w, y0 + h + 14), (20, 20, 20), -1)
+    cv2.addWeighted(shade, 0.55, img, 0.45, 0, dst=img)
+    outline = np.array([spot(0, 0), spot(1, 0), spot(1, 1), spot(0, 1)], np.int32)
+    overlay = img.copy()
+    cv2.fillPoly(overlay, [outline], (60, 90, 140))
+    cv2.addWeighted(overlay, 0.5, img, 0.5, 0, dst=img)
+    for s in range(6):
+        cv2.line(img, spot(s / 5, 0), spot(s / 5, 1), (225, 225, 225), 1)
+    for n in (1, 3, 5, 7, 9, 12):
+        t = 2 * (1 - 2 ** (-n / 12))
+        cv2.line(img, spot(0, t), spot(1, t), (0, 200, 255) if n == 12 else (150, 150, 150), 1)
+    cv2.line(img, spot(0, 0), spot(1, 0), (255, 255, 255), 3)   # the nut
+    cv2.polylines(img, [outline], True, (255, 255, 255), 1)
+    cv2.putText(img, "nut", (x0 + 2, y0 + h + 10), FONT_GUIDE, 0.4, (255, 255, 255), 1)
+    cv2.putText(img, "fret 12", (x0 + w - 52, y0 + h + 10), FONT_GUIDE, 0.4, (0, 200, 255), 1)
+    cv2.putText(img, "low E", (x0 + 2, y0 - 2), FONT_GUIDE, 0.4, (255, 255, 255), 1)
+    for i, (u, t) in enumerate(CORNER_ORDER):
+        centre = spot(u, t)
+        if i < step:
+            cv2.circle(img, centre, 5, (0, 200, 0), -1)
+        elif i == step:
+            cv2.circle(img, centre, int(7 + 6 * pulse), (0, 165, 255), 2)
+            cv2.circle(img, centre, 4, (0, 255, 255), -1)
+        else:
+            cv2.circle(img, centre, 4, (150, 150, 150), 1)
+    if step < 4:   # the same corner, pulsing where it should be on the photo (if the guitar is in the outline)
+        size = (img.shape[1], img.shape[0])
+        u, t = CORNER_ORDER[step]
+        cv2.circle(img, ghost_point(u, t, size), int(12 + 8 * pulse), (0, 165, 255), 2)
+
+
+FONT_GUIDE = cv2.FONT_HERSHEY_SIMPLEX
+
+
 def take_photo(capture):
     """Shows the mirrored camera; SPACE takes the photo, ESC cancels. Returns the raw frame or None."""
     while True:
@@ -70,6 +127,7 @@ def take_photo(capture):
         draw_ghost(view, False)
         _text(view, "Put the neck inside the outline, as you will play it, hand off the neck", 30)
         _text(view, "SPACE: take the photo   ESC: cancel", 62)
+        _text(view, "Notebook base at thigh height; tilt the screen until the neck fits the outline", 94, (255, 255, 255))
         light = lighting_check(float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).mean()))
         if not light["ok"]:
             _text(view, light["hint"], 94, (0, 165, 255))
@@ -127,6 +185,7 @@ def click_corners(frame):
                 _text(shown, "T: new photo, R: click again, ENTER: save anyway", 62, (0, 165, 255))
         else:
             _text(shown, "Click: " + PROMPTS[len(clicks)], 30, (0, 255, 255))
+            draw_click_guide(shown, len(clicks))
         cv2.imshow(WINDOW, shown)
         key = cv2.waitKey(20) & 0xFF
         if key == 27:
