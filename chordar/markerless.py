@@ -44,7 +44,8 @@ FLOW_RANSAC_PX = 2.0
 FLOW_MIN_INLIERS = 10
 FLOW_REGION_MARGIN = 0.2
 MAX_STEP_FRACTION = 0.12   # the neck cannot move more than this fraction of its length between two frames
-MAX_STEP_SCALE = 1.12      # ... nor change its length by more than this factor
+MAX_STEP_SCALE = 1.04      # ... nor change its length by more than this factor (1.12 let the far end slide 100+ px toward the body for a few
+                           # frames when the strumming hand moved over it, in dim light)
 MATCH_GAP_FRAMES = 3       # a reference match comes this many frames after the previous one, so it may have moved this much more
 REF_WEIGHT = 0.07       # how much of each new reference match is blended into the followed position
 AGREE_FRACTION = 0.04   # reference and flow agree if the corners are within this fraction of the neck size

@@ -133,9 +133,10 @@ def main():
     check("the guide draws a little neck", float(mini0.std()) > 10)
     check("it shows a different corner for each step", not np.array_equal(mini0, mini1))
     check("and pulses (the ring grows and shrinks over time)", not np.array_equal(mini0, mini0_later))
-    gx, gy = ghost_point(0, 0, (W, H))
-    check("a ring is also drawn on the photo, where the corner should be if the guitar is in the outline",
-          float(np.abs(full0[gy - 24:gy + 24, gx - 24:gx + 24].astype(int) - 100).max()) > 50)
+    outside = np.ones(full0.shape[:2], bool)
+    x0, y0 = GUIDE_ORIGIN
+    outside[y0 - 16:y0 + GUIDE_SIZE[1] + 16, x0:x0 + GUIDE_SIZE[0] + 2] = False
+    check("nothing is drawn on the photo itself, only in the little neck", bool((full0[outside] == 100).all()))
     _, done = guide(4, 0.0)
     check("after the four clicks the guide has no pulsing ring", not np.array_equal(mini0, done))
 

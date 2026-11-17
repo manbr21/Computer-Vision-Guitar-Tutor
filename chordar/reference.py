@@ -70,8 +70,8 @@ CORNER_ORDER = ((0, 0), (1, 0), (1, 1), (0, 1))
 def draw_click_guide(img, step, now=None):
     """
     A small see-through neck in the corner of the screen (nut on the left, low E on top, like the photo) with the corner to
-    click next marked by a pulsing ring, the ones already clicked in green; and a pulsing ring on the photo, where the
-    corner should be if the guitar is in the outline.
+    click next marked by a pulsing ring, the ones already clicked in green. Nothing is marked on the photo itself: a guess
+    of where the corner should be on the guitar was often wrong at fret 12, and the user clicks what the photo shows.
     """
     now = time.time() if now is None else now
     pulse = 0.5 + 0.5 * math.sin(now * 6)
@@ -108,10 +108,6 @@ def draw_click_guide(img, step, now=None):
             cv2.circle(img, centre, 4, (0, 255, 255), -1)
         else:
             cv2.circle(img, centre, 4, (150, 150, 150), 1)
-    if step < 4:   # the same corner, pulsing where it should be on the photo (if the guitar is in the outline)
-        size = (img.shape[1], img.shape[0])
-        u, t = CORNER_ORDER[step]
-        cv2.circle(img, ghost_point(u, t, size), int(12 + 8 * pulse), (0, 165, 255), 2)
 
 
 FONT_GUIDE = cv2.FONT_HERSHEY_SIMPLEX
