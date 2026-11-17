@@ -66,6 +66,16 @@ def main():
     moved["index"] = (two["index"][0], two["index"][1] + gap)
     check("a two-note chord with one finger a whole string off does not score 100%", chord_accuracy(em, moved, neck, False) < 100)
 
+    # what is drawn is what is scored: a finger that counts is drawn within the tolerance of its note, a finger that does not is not
+    from chordar.scoring import corrected_points
+    shifted = tips(all_strings=0.4)                          # every finger read 0.4 string off, as with another camera height
+    drawn = corrected_points(notes, shifted, neck, False)
+    on_note = all(abs(drawn[names[finger]][1] - neck.target(s, f)[1]) < 0.1 * gap for s, f, finger in notes)
+    check("with the shared shift taken out the drawn fingers are on their notes", on_note)
+    off_one = corrected_points(notes, tips({"index": -0.9}), neck, False)
+    check("a finger that is really off is drawn off (more than the tolerance away from its note)",
+          abs(off_one["index"][1] - neck.target(4, 1)[1]) > 0.5 * gap)
+
     # the reading bias: fingers the tracker reads 0.6 of a string off still cover its note once that is taken out
     d_notes = fretted_notes("D")                      # G2 index (string 3), B3 ring (4), e2 middle (5)
     d_tips = {names[finger]: neck.target(s, f) for s, f, finger in d_notes}

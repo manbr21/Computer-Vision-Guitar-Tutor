@@ -4,7 +4,7 @@ from typing import Optional
 
 from chordar.chords import STRING_NAMES
 from chordar.config import NUM_STRINGS, STRING_TOLERANCE
-from chordar.scoring import FINGER_NAMES, common_shift, covered_notes, finger_offsets
+from chordar.scoring import FINGER_NAMES, common_shift, corrected_points, covered_notes, finger_offsets
 
 
 @dataclass
@@ -54,14 +54,16 @@ def coach(notes, fingertips, neck, parallax=True, stabilizer=None, bias=None):
         return Coaching(done, "Place your fretting hand on the neck")
 
     shift = common_shift(offsets)
+    where_they_are = corrected_points(notes, fingertips, neck, parallax, bias)
     for i in sorted((i for i in range(len(notes)) if not done[i]), key=lambda i: notes[i][2]):
         s, f, finger = notes[i]
         where = f"string {NUM_STRINGS - s} ({STRING_NAMES[s]}), fret {f}"
         if i not in offsets:   # that finger is not in view
             return Coaching(done, f"Finger {finger}: put it on {where}")
-        pixel = fingertips[FINGER_NAMES[finger]]
+        pixel = where_they_are[FINGER_NAMES[finger]]   # the arrow starts where the app puts the finger, as drawn
         strings, spaces = offsets[i][0] - shift[0], offsets[i][1] - shift[1]
-        if neck.locate(pixel[0], pixel[1], parallax) is None:
+        raw = fingertips[FINGER_NAMES[finger]]
+        if neck.locate(raw[0], raw[1], parallax) is None:
             return Coaching(done, f"Finger {finger}: bring it onto the neck, {where}", fix=(notes[i], pixel))
         if abs(strings) <= STRING_TOLERANCE and -0.5 <= spaces < 0.75:   # covered, only held back by the steadying
             continue

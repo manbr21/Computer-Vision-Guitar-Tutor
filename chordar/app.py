@@ -14,7 +14,7 @@ from chordar.overlay import (draw_arrow, draw_banner, draw_capo, draw_chord_diag
                              draw_fingertips, draw_gauge, draw_neck, put_text_bg)
 from chordar.placement import PlacementMonitor
 from chordar.reference import capture_reference
-from chordar.scoring import NoteStabilizer
+from chordar.scoring import NoteStabilizer, corrected_points
 from chordar.window import open_window, show
 
 log = logging.getLogger(__name__)
@@ -114,7 +114,8 @@ class ChordARApp:
             if coaching.fix is not None:
                 note, pixel = coaching.fix
                 draw_arrow(display, pixel, neck.target(note[0], note[1]), stop_short=target_radius(neck) + 6)
-            draw_fingertips(display, neck, fingertips, self.parallax_on, self.debug_info)
+            touch_points = corrected_points(notes, fingertips, neck, self.parallax_on, reading_bias(self.chord))
+            draw_fingertips(display, neck, fingertips, self.parallax_on, self.debug_info, touch_points)
             score = int(100 * sum(coaching.done) / len(notes)) if notes else None
         else:
             self.stabilizer.reset()

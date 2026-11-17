@@ -95,16 +95,19 @@ def draw_arrow(display, start, end, stop_short=0):
                         tipLength=min(0.25, 14 / length))
 
 
-def draw_fingertips(display, neck, fingertips, parallax, debug=False):
+def draw_fingertips(display, neck, fingertips, parallax, debug=False, touch_points=None):
     """
-    A light-blue dot per fingertip. With debug, also a cyan ring at its estimated contact point (with the parallax
-    correction) and a label with the string and fret it was assigned to, for example D2.
+    A light-blue dot where the app puts each finger of the chord (`touch_points`: what the score compares with the notes), so a
+    finger that counts is on its note. In the technical view (debug) the raw fingertips of the hand tracker are also drawn as
+    small gray dots, with a ring at the estimated contact point and a label with the string and fret it was assigned to.
     """
-    for x, y in fingertips.values():
+    for x, y in (touch_points or {}).values():
         cv2.circle(display, (x, y), 7, (0, 0, 0), -1)
-        cv2.circle(display, (x, y), 5, (255, 200, 60), -1)  # light blue: stands out from the green "done" notes
-        if not debug:
-            continue
+        cv2.circle(display, (x, y), 5, (255, 200, 60), -1)   # light blue: stands out from the green "done" notes
+    if not debug:
+        return
+    for x, y in fingertips.values():
+        cv2.circle(display, (x, y), 3, (160, 160, 160), -1)
         label_at = (x, y)
         contact = neck.contact_pixel(x, y) if parallax else None
         if contact is not None:

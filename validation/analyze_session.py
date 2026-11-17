@@ -111,7 +111,8 @@ def analyse(frames):
                         offsets.append([offs[i][0] - shift[0] for i in range(len(notes))])
             per_second.append(float(np.mean(values) * 100) if values else float("nan"))
         steady = np.array(steady_notes, dtype=float)
-        report["chords"][chord] = {
+        label = chord if chord not in report["chords"] else f"{chord}#{sum(1 for k in report['chords'] if k.split('#')[0] == chord) + 1}"
+        report["chords"][label] = {
             "seconds": len(group) / 30, "per_second": per_second, "peak_second_pct": float(np.nanmax(per_second)) if per_second else None,
             "seconds_to_whole_chord": None if first_full is None else round(first_full / 30, 1), "steady_from_second": settle,
             "steady_notes_pct": float(steady.mean() * 100) if len(steady) else None,

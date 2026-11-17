@@ -45,6 +45,26 @@ def common_shift(offsets):
     return np.clip(mean, [-string_limit, -config.COMMON_FRET_SHIFT], [string_limit, config.COMMON_FRET_SHIFT])
 
 
+def corrected_points(notes, fingertips, neck, parallax=True, bias=None):
+    """
+    {finger name: (x, y)}: where each finger of the chord is once the reading bias and the shared shift are taken out, which is
+    the point the score compares with its note (so a finger that counts is drawn on its note, within the tolerance).
+    """
+    offsets = finger_offsets(notes, fingertips, neck, parallax, bias)
+    shift = common_shift(offsets)
+    lo, hi = config.STRING_U_RANGE
+    points = {}
+    for i, (string_idx, fret, finger) in enumerate(notes):
+        if i not in offsets:
+            continue
+        strings, spaces = offsets[i][0] - shift[0], offsets[i][1] - shift[1]
+        near_wire, far_wire = neck.fret_bounds[fret - 1], neck.fret_bounds[fret]
+        u = lo + (string_idx + strings) * (hi - lo) / (config.NUM_STRINGS - 1)
+        t = (near_wire + far_wire) / 2 + spaces * (far_wire - near_wire)
+        points[FINGER_NAMES[finger]] = neck.to_image(u, t)
+    return points
+
+
 def covered_notes(notes, fingertips, neck, parallax=True, bias=None):
     """
     One bool per (string_idx, fret, finger) note: is it covered by its own finger? After the shared shift, the finger
