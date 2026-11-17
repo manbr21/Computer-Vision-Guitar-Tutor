@@ -35,6 +35,9 @@ FRET_SMOOTH = 0.25       # weight of each new fit in the running fret positions
 FRET_MAX_RMS_PX = 3.0    # a fit that misses the wires by more than this is ignored
 FRET_FAILURES_BEFORE_WARNING = 7   # fits in a row (one every 3 frames, about 0.7 s) without finding the wires
 FRET_MAX_JUMP = 0.05     # ... and so is one that moves the nut or fret 12 by more than this fraction of the neck at once
+FRET_MAX_NUT_SHIFT = 0.02   # ... and one that puts the nut further than this fraction of the neck from the followed corners: the corners
+                            # are tracked on the whole neck and stay on the nut, while fingers over the first frets drag a fit away
+FRET_MAX_12_SHIFT = 0.04    # (same for fret 12)
 HOLD_FRAMES = 8         # a neck that cannot be found keeps its last position this many frames
 FLOW_POINTS = 300       # corner points followed from one frame to the next (optical flow)
 FLOW_RANSAC_PX = 2.0
@@ -262,7 +265,9 @@ class MarklessTracker:
                 t_nut = info["nut_shift_px"] / length
                 t_12 = t_nut + 1 + info["length_change"]
                 bounds = np.array(info["fret_bounds"])
-                if self._fit is None:
+                if abs(t_nut) > FRET_MAX_NUT_SHIFT or abs(t_12 - 1) > FRET_MAX_12_SHIFT:
+                    pass   # the wires of this frame were mixed up with fingers or shadows: keep the running fit
+                elif self._fit is None:
                     self._fit, self._params = (t_nut, t_12, bounds), info["params"]
                 elif abs(t_nut - self._fit[0]) <= FRET_MAX_JUMP and abs(t_12 - self._fit[1]) <= FRET_MAX_JUMP:
                     w = FRET_SMOOTH

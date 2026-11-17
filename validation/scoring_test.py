@@ -58,7 +58,7 @@ def main():
     missing = {k: v for k, v in tips().items() if k != "ring"}
     check("a finger that is not in view leaves its note uncovered", covered_notes(notes, missing, neck, False) == [True, False, True])
 
-    # two fingers: the shared shift is limited to 0.4 so that it cannot hide an error
+    # two fingers: the shared shift is limited to 0.2 so that it cannot hide an error
     em = fretted_notes("Em")
     two = {names[finger]: neck.target(s, f) for s, f, finger in em}
     check("a two-note chord scores 100% on target", chord_accuracy(em, two, neck, False) == 100)
@@ -68,7 +68,7 @@ def main():
 
     # what is drawn is what is scored: a finger that counts is drawn within the tolerance of its note, a finger that does not is not
     from chordar.scoring import corrected_points
-    shifted = tips(all_strings=0.4)                          # every finger read 0.4 string off, as with another camera height
+    shifted = tips(all_strings=0.3)                          # every finger read 0.3 string off (the most the shared shift takes out), as with another camera height
     drawn = corrected_points(notes, shifted, neck, False)
     on_note = all(abs(drawn[names[finger]][1] - neck.target(s, f)[1]) < 0.1 * gap for s, f, finger in notes)
     check("with the shared shift taken out the drawn fingers are on their notes", on_note)

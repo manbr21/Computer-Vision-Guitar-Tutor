@@ -37,7 +37,9 @@ NECK_LENGTH_MM = 325.0                           # nut line -> fret 12 line (hal
 CONTACT_BACK = 0.4        # the touch point is this fraction of the way from the fingertip landmark toward its last joint
 STRING_TOLERANCE = 0.5    # a finger covers its note if it is within this many string gaps of the string ...
 FRET_BEHIND = 0.25        # ... and within the fret space or this fraction of it past its wire (players press behind the wire)
-COMMON_SHIFT = 0.5        # the fingers are read with one shared shift of up to this many strings (and none along the neck),
+COMMON_SHIFT = 0.3        # the fingers are read with one shared shift of up to this many strings (and none along the neck),
+COMMON_SHIFT_TWO = 0.2    # (two fingers: less, it could hide one finger's error). 0.5 / 0.4 accepted a hand a whole string off in
+                          # 46% of the frames and a single finger a string off in 28%; 0.3 / 0.2 in 32% and 23% for 1 point fewer hits
 COMMON_FRET_SHIFT = 0.0   # which absorbs what changes with the camera height and the angle of the hand (not along the neck:
                           # a shift there hid a finger one fret off in 40% of the frames)
 NOTE_ON_FRAMES = 3        # a note turns green after being covered this many frames in a row ...

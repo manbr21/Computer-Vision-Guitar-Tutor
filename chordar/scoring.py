@@ -36,12 +36,12 @@ def finger_offsets(notes, fingertips, neck, parallax=True, bias=None):
 def common_shift(offsets):
     """
     The shift shared by the fingers, limited to COMMON_SHIFT strings and COMMON_FRET_SHIFT fret spaces (0 with a
-    single finger; at most 0.4 strings with two, which could otherwise hide one finger's error).
+    single finger; at most COMMON_SHIFT_TWO strings with two, which could otherwise hide one finger's error).
     """
     if len(offsets) < 2:
         return np.zeros(2)
     mean = np.mean(list(offsets.values()), axis=0)
-    string_limit = config.COMMON_SHIFT if len(offsets) >= 3 else min(config.COMMON_SHIFT, 0.4)
+    string_limit = config.COMMON_SHIFT if len(offsets) >= 3 else min(config.COMMON_SHIFT, config.COMMON_SHIFT_TWO)
     return np.clip(mean, [-string_limit, -config.COMMON_FRET_SHIFT], [string_limit, config.COMMON_FRET_SHIFT])
 
 
