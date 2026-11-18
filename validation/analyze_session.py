@@ -32,7 +32,9 @@ SETTLE_SECONDS = 4   # the fingers need about this long to get into a chord afte
 def replay(session, reference_path):
     """Per frame: chord shown, neck (corners, fret bounds), and the fingertip/last-joint landmarks of the fretting hand."""
     import mediapipe as mp
-    chords = [r["chord"] for r in __import__("csv").DictReader(open(os.path.join(session, "corners.csv")))]
+    rows = list(__import__("csv").DictReader(open(os.path.join(session, "corners.csv"))))
+    chords = [r["chord"] for r in rows]
+    capos = [int(r.get("capo") or 0) for r in rows]
     tracker = MarklessTracker(NeckReference.load(reference_path))
     hands = mp.solutions.hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5,
                                      min_tracking_confidence=0.5)
@@ -45,11 +47,11 @@ def replay(session, reference_path):
             break
         display, neck = tracker.track(frame)
         record = {"i": i, "chord": chords[i] if i < len(chords) else None, "neck": None, "lm": None,
-                  "size": (frame.shape[1], frame.shape[0])}
+                  "size": (frame.shape[1], frame.shape[0]), "capo": capos[i] if i < len(capos) else 0}
         if neck is not None:
             record["neck"] = ([tuple(map(float, c)) for c in neck.corners], list(neck.fret_bounds))
             h, w = display.shape[:2]
-            x0, y0, x1, y1 = fretting_hand_region(neck, (w, h))
+            x0, y0, x1, y1 = fretting_hand_region(neck, (w, h), record["capo"])
             crop = display[y0:y1, x0:x1]
             result = hands.process(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
             if result.multi_hand_landmarks:
@@ -83,11 +85,12 @@ def analyse(frames):
                       "length_px_sd": float(lengths.std()), "center_y_fraction": float(np.median(centers[:, 1]) / frames[0]["size"][1]),
                       "center_step_px_median": float(np.median(steps)), "jumps_over_15px": int((steps > 15).sum()),
                       "camera_angle_total_across_along_deg": [round(float(a), 1) for a in angles]}
-    for chord, group in groupby(enumerate(frames), key=lambda x: x[1]["chord"]):
+    for (chord, capo), group in groupby(enumerate(frames), key=lambda x: (x[1]["chord"], x[1]["capo"])):
         group = [d for _, d in group]
         if len(group) < 30:
             continue
-        notes = fretted_notes(chord)
+        notes = fretted_notes(chord, capo)
+        name = chord if capo == 0 else f"{chord}+{capo}"
         stabilizer, per_second, steady_notes, steady_whole, offsets, shifts, first_full = NoteStabilizer(), [], [], [], [], [], None
         settle = SETTLE_SECONDS if len(group) >= 6 * 30 else max(len(group) // 30 - 2, 0)   # short holds: the last seconds count
         for s in range(len(group) // 30):
@@ -111,7 +114,7 @@ def analyse(frames):
                         offsets.append([offs[i][0] - shift[0] for i in range(len(notes))])
             per_second.append(float(np.mean(values) * 100) if values else float("nan"))
         steady = np.array(steady_notes, dtype=float)
-        label = chord if chord not in report["chords"] else f"{chord}#{sum(1 for k in report['chords'] if k.split('#')[0] == chord) + 1}"
+        label = name if name not in report["chords"] else f"{name}#{sum(1 for k in report['chords'] if k.split('#')[0] == name) + 1}"
         report["chords"][label] = {
             "seconds": len(group) / 30, "per_second": per_second, "peak_second_pct": float(np.nanmax(per_second)) if per_second else None,
             "seconds_to_whole_chord": None if first_full is None else round(first_full / 30, 1), "steady_from_second": settle,

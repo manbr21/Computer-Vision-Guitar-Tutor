@@ -202,6 +202,10 @@ at 30 deg; with it, it stays at ~100%.
   (1.5x, 2x) changed nothing (80% of the notes, same jitter): the limit is the model and the finger hiding its own tip, not the
   pixels, so `Z` helps the player see the dots and does not help the detection. The index finger on frets 1 and 2 is the least
   reliable. A camera at the height of the neck or a little above works best.
+- With the capo above fret 4 the fingers are read poorly: the hand turns and its fingers bunch up, and on a recording with the capo on 5 and 7
+  only about a third of the notes were covered (capo 2: 99%). The region where the hand is looked for follows the capo (it raised 24% and 16% to
+  37% and 35%), and the app says so on the screen above fret 4. The neck does follow the guitar when the player drags it sideways (it
+  moved 28 px in a Dm), so that is real movement, not an error of the tracking.
 - The photo only works with light and distance similar to when it was taken; with much dimmer or backlit light the
   neck may not be found (take a new photo with C).
 - Tracking is validated against ArUco markers on six recorded sessions of one user, one guitar and one laptop.

@@ -26,6 +26,9 @@ def main():
     check("the first frets are inside", all(inside(*neck.to_image(0.5, t)) for t in (0.0, 0.1, 0.3, 0.5, 0.7)))
     check("the fingers below the neck are inside (two neck widths under it)", inside(*neck.to_image(2.0, 0.15)))
     check("the body end of the neck, where the strumming hand is, is outside", not inside(*neck.to_image(0.5, 1.2)) and not inside(*neck.to_image(0.5, 1.6)))
+    cx0, cy0, cx1, cy1 = fretting_hand_region(neck, (1280, 720), 7)
+    check("with a capo on fret 7 the region moves along the neck and takes the hand at frets 8-10",
+          cx0 > x0 + 100 and cx0 <= neck.to_image(0.5, neck.fret_bounds[7])[0] and cx1 >= neck.to_image(2.0, neck.fret_bounds[10])[0])
     check(f"the region is a fraction of the frame ({(x1 - x0) * (y1 - y0) / (1280 * 720):.0%})", (x1 - x0) * (y1 - y0) < 0.5 * 1280 * 720)
 
     near_edge = Fretboard((20, 20), (20, 100), (600, 110), (600, 20))

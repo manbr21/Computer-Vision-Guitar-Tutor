@@ -5,7 +5,7 @@ import time
 import cv2
 
 from chordar.calibration import run_calibration
-from chordar.chords import MAX_CAPO, fretted_notes, reading_bias
+from chordar.chords import MAX_CAPO, RELIABLE_CAPO, fretted_notes, reading_bias
 from chordar.hands import FingertipTracker, fretting_hand_region
 from chordar.markerless import MarklessTracker
 from chordar.markers import MarkerTracker
@@ -100,7 +100,7 @@ class ChordARApp:
     def process_frame(self, frame, now):
         """Detects the neck and fingers in a camera frame and returns the image to show. now: frame start time."""
         display, neck = self.markers.track(frame, self.pose_variant, draw=self.show_neck_overlay)
-        region = fretting_hand_region(neck, (display.shape[1], display.shape[0])) if neck is not None else None
+        region = fretting_hand_region(neck, (display.shape[1], display.shape[0]), self.capo) if neck is not None else None
         fingertips = self.hands.track(frame, neck.to_image(0.5, 0.2) if neck is not None else None, region)
         size = (display.shape[1], display.shape[0])
 
@@ -218,6 +218,8 @@ class ChordARApp:
         elif drift_hint is not None:
             draw_banner(display, f"{drift_hint} (C: " + ("new photo)" if self.markerless else "recalibrate)"), ORANGE)
         elif coaching is not None:
+            if self.capo > RELIABLE_CAPO:
+                put_text_bg(display, f"Capo above fret {RELIABLE_CAPO}: the fingers are read less reliably", (20, 100), 0.5, ORANGE, thickness=1)
             text = coaching.message
             if text == "Perfect!" and self.audio is not None and self.audio.active:
                 text += " Now strum it"

@@ -27,6 +27,7 @@ def reading_bias(chord):
     return READING_BIAS.get(chord, {})
 
 
+RELIABLE_CAPO = 4  # up to here the fingers were read well (capo 2: 99% of the notes); at 5 and 7 the hand turns and its fingers bunch up (35%)
 MAX_CAPO = 7  # highest capo fret offered; with the highest chord note (fret 3) it stays on the 12-fret neck
 
 

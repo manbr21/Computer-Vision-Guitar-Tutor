@@ -18,14 +18,18 @@ def _mean_point(points):
     return (sum(p[0] for p in points) / len(points), sum(p[1] for p in points) / len(points))
 
 
-def fretting_hand_region(neck, size):
+def fretting_hand_region(neck, size, capo=0):
     """
     (x0, y0, x1, y1) in the mirrored frame: where the fretting hand is, around the first frets and below and above the neck
     (a few neck widths either way, from a little before the nut to well past fret 7). The strumming hand is outside it, so
-    it is never seen; MediaPipe also looks at fewer pixels.
+    it is never seen; MediaPipe also looks at fewer pixels. With a capo the hand plays from the capo on, so the region moves
+    along the neck with it (up to just past fret 12, short of the strumming hand): a hand at frets 8-10 was cut at the border
+    of the old region and its fingers were mixed up.
     """
     width, height = size
-    corners = [neck.to_image(u, t) for u in (-2.5, 3.5) for t in (-0.3, 0.85)]
+    start = neck.fret_bounds[min(capo, len(neck.fret_bounds) - 1)] if capo else 0.0
+    t_lo, t_hi = start - 0.3, max(0.85, min(start + 0.6, 1.05))
+    corners = [neck.to_image(u, t) for u in (-2.5, 3.5) for t in (t_lo, t_hi)]
     xs, ys = [p[0] for p in corners], [p[1] for p in corners]
     return max(int(min(xs)), 0), max(int(min(ys)), 0), min(int(max(xs)), width), min(int(max(ys)), height)
 
