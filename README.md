@@ -192,24 +192,23 @@ at 30 deg; with it, it stays at ~100%.
 - For three chords the hand tracker reads some fingers the same wrong way every time (the rest of the finger hides the tip): the middle
   on the e string of D about half a string toward the bass, the index on the G of D low, the ring on the B and the index on the e of
   Dm, the ring on the D of E. `chords.READING_BIAS` takes these out; it was measured on five recordings of one user and, left out one
-  session at a time, raised the notes covered in D from 75% to 93% and in Dm from 87% to 93% (overall 84% to 88%, and the false
-  accepts of a finger a string off fell from 24% to 19%). It needs checking on other hands.
-- The reading of the fingers is accurate to about half a string (the strings are only ~14-16 px apart at the comfortable
-  playing distance), which is the limit of what the app can tell apart. On a recording of the eight chords held still, with
-  the camera ~20 degrees from the neck, 88% of the notes were covered by their own finger (74% of the frames had the whole
-  chord); on another recording with the camera ~12 degrees from the neck, the chords not used to fit the constants scored
-  98.7% with the earlier any-finger rule. In simulation a finger moved a whole string off is still accepted in about a
-  quarter of the frames (tolerance 0.5; with the shared shift limited to 0.3 strings, 0.2 for two fingers, a hand moved a whole
-  string off is accepted in about 30% of the frames and one finger a string off in 17-23%; wider limits raised those to 46% and
-  28% for one point more of correct notes), and one moved a whole fret in 5%. Enlarging the hand before MediaPipe reads it
+  session at a time, raised the notes covered in D from 75% to 93% and in Dm from 87% to 93% (overall 84% to 88%). It needs checking on other hands.
+- The reading of the fingers is accurate to about half a string (the strings are only 14-17 px apart at the comfortable
+  playing distance), which is the limit of what the app can tell apart. On the two final recordings of the eight chords held
+  still (a classical guitar and an electric guitar with a narrower neck), the app counted 96% and 99% of the notes as covered by
+  their own finger, and the whole chord in 88% and 96% of the frames. In a simulation on three earlier recordings of the classical
+  guitar (2413 frames of a correct grip) a hand moved a whole string off is still accepted in 26-37% of the frames (depending on
+  the side), one finger a string off in 18-19% and one finger a fret off in 6%; a shared shift of up to 0.5 strings accepted
+  39-56%, 24% and 5% for two points more of correct notes. Enlarging the hand before MediaPipe reads it
   (1.5x, 2x) changed nothing (80% of the notes, same jitter): the limit is the model and the finger hiding its own tip, not the
   pixels, so `Z` helps the player see the dots and does not help the detection. The index finger on frets 1 and 2 is the least
-  reliable. A camera at the height of the neck or a little above works best.
+  reliable. A camera at the height of the neck or a little below works best.
+- Speed: processing a frame (neck tracking, hand, scoring and drawing) takes a median 42 ms, about 24 frames per second, on a 2019 MacBook Pro (i9, CPU); the sessions recorded live ran at 11-13 frames per second because recording the video, the camera and the display add to that.
 - On a different instrument (an electric guitar, strings 13.6 px apart against 16.6 on the classical guitar, camera 32 degrees off) the chords
   were still read: D, Dm, E, Em, A, Am 99-100% of the notes, G 93%, C 74% before the bias for the C middle finger and about 98% after. With
   a capo the middle finger of C was read a string toward the bass on the electric guitar (-1.0 on 2) and not on the classical one (+0.2),
   so no bias is applied with a capo and that note stays unreliable there.
-- The capo goes up to fret 4 only. On a recording with it on 5 and 7 only about a third of the notes were covered (capo 2: 99%): the hand
+- The capo goes up to fret 4 only. On a recording with it on 5 and 7 only about a third of the notes were covered (capo 2: 100%): the hand
   turns and its fingers bunch up, so the order index-middle-ring across the strings is lost (a ring finger whose tip is fully in view
   was read two strings low). The region where the hand is looked for follows the capo (it raised 24% and 16% to 37% and 35%). The neck
   does follow the guitar when the player drags it sideways (it moved 28 px in a Dm), so that is real movement, not an error of the tracking.
