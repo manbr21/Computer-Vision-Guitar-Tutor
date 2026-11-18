@@ -18,13 +18,16 @@ CHORD_LIBRARY = {
 # Where the hand tracker reads some fingers for these chords, in strings, away from where they really are (+ = toward the high e):
 # the same in five recordings of one user, so it is taken out before the fingers are compared with their notes. Keyed by string.
 # D: the index on the G reads low and the middle on the e reads high (the rest of the finger hides the tip); Dm: the ring on the B
-# high and the index on the e low; E: the ring on the D high. Only these were large and the same from session to session.
-READING_BIAS = {"D": {3: 0.36, 5: -0.50}, "Dm": {4: -0.35, 5: 0.39}, "E": {2: -0.31}}
+# high and the index on the e low; E: the ring on the D high; C: the middle on the D reads toward the bass (0.4 less than the ring
+# and the index, on a classical guitar and on an electric one alike: on the electric one it went from 71% of the notes to 98%).
+# Only these were large and the same from session to session. Measured without a capo, so it is not applied with one (with the capo on 2
+# the middle read +0.2 on the classical guitar and -1.0 on the electric one: no single value fits).
+READING_BIAS = {"D": {3: 0.36, 5: -0.50}, "Dm": {4: -0.35, 5: 0.39}, "E": {2: -0.31}, "C": {2: -0.4}}
 
 
-def reading_bias(chord):
-    """{string_idx: strings} to take out of the reading of the finger on each string of this chord (empty if none)."""
-    return READING_BIAS.get(chord, {})
+def reading_bias(chord, capo=0):
+    """{string_idx: strings} to take out of the reading of the finger on each string of this chord (empty if none or with a capo)."""
+    return {} if capo else READING_BIAS.get(chord, {})
 
 
 MAX_CAPO = 4  # highest capo fret offered: the fingers were read well with the capo on 2 (99% of the notes) but poorly on 5 and 7 (about 35%:

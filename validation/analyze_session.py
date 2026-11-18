@@ -100,14 +100,14 @@ def analyse(frames):
                     stabilizer.reset()
                     continue
                 neck, points = neck_of(d), touch_points(d)
-                covered = covered_notes(notes, points, neck, False, reading_bias(chord))
+                covered = covered_notes(notes, points, neck, False, reading_bias(chord, capo))
                 shown = stabilizer.update(covered)
                 values.append(np.mean(shown))
                 if all(shown) and first_full is None:
                     first_full = d["i"] - group[0]["i"]
                 if s >= settle:
                     steady_notes.append(covered)
-                    offs = finger_offsets(notes, points, neck, False, reading_bias(chord))
+                    offs = finger_offsets(notes, points, neck, False, reading_bias(chord, capo))
                     if len(offs) == len(notes):
                         shift = common_shift(offs)
                         shifts.append(shift[0])

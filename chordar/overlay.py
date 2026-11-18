@@ -58,7 +58,7 @@ def draw_capo(display, neck, capo):
     cv2.polylines(display, [bar], True, (255, 255, 255), 2)
 
 
-TARGET_RADIUS = 10   # radius of a chord dot in pixels: it stays readable from a distance, whatever the size of the neck
+TARGET_RADIUS = 8    # radius of a chord dot in pixels: readable from a distance and smaller than the gap between strings (13-17 px)
 
 
 def target_radius(neck=None):
@@ -71,16 +71,16 @@ def draw_chord_targets(display, neck, notes, done=None, highlight=None):
     missing and green once it is covered. The note `highlight` (an index) gets an orange ring: it is where the arrow points.
     """
     radius = target_radius(neck)
-    scale, thickness = 0.65, 2
+    scale, thickness = 0.5, 1
     for i, (string_idx, fret, finger) in enumerate(notes):
         x, y = neck.target(string_idx, fret)
         covered = done is not None and done[i]
-        cv2.circle(display, (x, y), radius, (0, 170, 0) if covered else (0, 255, 255), -1)
-        cv2.circle(display, (x, y), radius, (255, 255, 255), 2 if radius >= 8 else 1)
+        cv2.circle(display, (x, y), radius, (0, 170, 0) if covered else (0, 255, 255), -1, cv2.LINE_AA)
+        cv2.circle(display, (x, y), radius, (255, 255, 255), 1, cv2.LINE_AA)
         (w, h), _ = cv2.getTextSize(str(finger), FONT, scale, thickness)
-        cv2.putText(display, str(finger), (x - w // 2, y + h // 2), FONT, scale, (255, 255, 255) if covered else (0, 0, 0), thickness)
+        cv2.putText(display, str(finger), (x - w // 2, y + h // 2), FONT, scale, (255, 255, 255) if covered else (0, 0, 0), thickness, cv2.LINE_AA)
         if i == highlight:
-            cv2.circle(display, (x, y), radius + 3, (0, 140, 255), 2)
+            cv2.circle(display, (x, y), radius + 3, (0, 140, 255), 2, cv2.LINE_AA)
 
 
 def draw_arrow(display, start, end, stop_short=0):
@@ -102,8 +102,8 @@ def draw_fingertips(display, neck, fingertips, parallax, debug=False, touch_poin
     small gray dots, with a ring at the estimated contact point and a label with the string and fret it was assigned to.
     """
     for x, y in (touch_points or {}).values():
-        cv2.circle(display, (x, y), 7, (0, 0, 0), -1)
-        cv2.circle(display, (x, y), 5, (255, 200, 60), -1)   # light blue: stands out from the green "done" notes
+        cv2.circle(display, (x, y), 5, (0, 0, 0), -1, cv2.LINE_AA)
+        cv2.circle(display, (x, y), 3, (255, 200, 60), -1, cv2.LINE_AA)   # light blue: stands out from the green "done" notes
     if not debug:
         return
     for x, y in fingertips.values():

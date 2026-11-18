@@ -113,7 +113,7 @@ class ChordARApp:
         score, coaching = None, None
         if neck is not None:
             notes = fretted_notes(self.chord, self.capo)
-            coaching = coach(notes, fingertips, neck, self.parallax_on, self.stabilizer, reading_bias(self.chord))
+            coaching = coach(notes, fingertips, neck, self.parallax_on, self.stabilizer, reading_bias(self.chord, self.capo))
             if self.show_neck_overlay:
                 draw_neck(display, neck)
             if self.capo:
@@ -123,7 +123,7 @@ class ChordARApp:
             if coaching.fix is not None:
                 note, pixel = coaching.fix
                 draw_arrow(display, pixel, neck.target(note[0], note[1]), stop_short=target_radius(neck) + 6)
-            touch_points = corrected_points(notes, fingertips, neck, self.parallax_on, reading_bias(self.chord))
+            touch_points = corrected_points(notes, fingertips, neck, self.parallax_on, reading_bias(self.chord, self.capo))
             draw_fingertips(display, neck, fingertips, self.parallax_on, self.debug_info, touch_points)
             score = int(100 * sum(coaching.done) / len(notes)) if notes else None
         else:

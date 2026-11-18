@@ -85,6 +85,7 @@ def main():
     from chordar.chords import reading_bias
     check("with the bias of the D chord all its notes are covered", covered_notes(d_notes, d_tips, neck, False, reading_bias("D")) == [True, True, True])
     check("a chord without a bias is read as it is", reading_bias("Am") == {})
+    check("the bias is only for playing without a capo (it was measured without one)", reading_bias("D", 2) == {} and reading_bias("D", 0) != {})
 
     # the steadying of the covered flags
     st = NoteStabilizer(3, 4)

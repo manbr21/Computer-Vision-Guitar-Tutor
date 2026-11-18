@@ -203,6 +203,10 @@ at 30 deg; with it, it stays at ~100%.
   (1.5x, 2x) changed nothing (80% of the notes, same jitter): the limit is the model and the finger hiding its own tip, not the
   pixels, so `Z` helps the player see the dots and does not help the detection. The index finger on frets 1 and 2 is the least
   reliable. A camera at the height of the neck or a little above works best.
+- On a different instrument (an electric guitar, strings 13.6 px apart against 16.6 on the classical guitar, camera 32 degrees off) the chords
+  were still read: D, Dm, E, Em, A, Am 99-100% of the notes, G 93%, C 74% before the bias for the C middle finger and about 98% after. With
+  a capo the middle finger of C was read a string toward the bass on the electric guitar (-1.0 on 2) and not on the classical one (+0.2),
+  so no bias is applied with a capo and that note stays unreliable there.
 - The capo goes up to fret 4 only. On a recording with it on 5 and 7 only about a third of the notes were covered (capo 2: 99%): the hand
   turns and its fingers bunch up, so the order index-middle-ring across the strings is lost (a ring finger whose tip is fully in view
   was read two strings low). The region where the hand is looked for follows the capo (it raised 24% and 16% to 37% and 35%). The neck
