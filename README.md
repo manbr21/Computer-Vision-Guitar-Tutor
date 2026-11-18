@@ -226,3 +226,5 @@ at 30 deg; with it, it stays at ~100%.
 - Original project: [nathanchiu05/Computer-Vision-Guitar-Tutor](https://github.com/nathanchiu05/Computer-Vision-Guitar-Tutor).
   Its README states the MIT license but the repository has no `LICENSE` file.
 - The U-Net baseline the project was compared with is [abhishekrana/guitar-augmented-reality](https://github.com/abhishekrana/guitar-augmented-reality) (Apache-2.0); it is not included here.
+
+The project is a fork of [nathanchiu05/Computer-Vision-Guitar-Tutor](https://github.com/nathanchiu05/Computer-Vision-Guitar-Tutor): the marker-free neck tracking, the fret fitting, the per-finger scoring, the coaching, the strum detector, the virtual capo, the calibration and the interface are the team's work.

@@ -3,21 +3,24 @@ import cv2
 import numpy as np
 
 
+WINDOW = "ChordAR"          # the one window of the whole session: the set-up screens and the playing screen share it
 _sized = set()
+_opened = set()
+_placement = (1.0, 0.0, 0.0)  # scale and offset of the picture inside the window, for turning mouse positions back into picture ones
 
 
-def open_window(name):
-    """Creates a resizable window (config.WINDOW_SCALE times the picture; it can be enlarged with the mouse or the green button of macOS)."""
-    cv2.namedWindow(name, cv2.WINDOW_NORMAL)
-    _sized.discard(name)
+def open_window(name=WINDOW):
+    """Creates the resizable window once (it opens config.WINDOW_SCALE times the picture; enlarge it with the mouse or the green button of macOS)."""
+    if name not in _opened:
+        cv2.namedWindow(name, cv2.WINDOW_NORMAL)
+        _opened.add(name)
+        _sized.discard(name)
 
 
-def scale_up(image):
-    """The picture at config.WINDOW_SCALE times its size, for windows that show it as it is (the set-up screens)."""
-    from chordar import config
-    if config.WINDOW_SCALE == 1.0:
-        return image
-    return cv2.resize(image, None, fx=config.WINDOW_SCALE, fy=config.WINDOW_SCALE, interpolation=cv2.INTER_LINEAR)
+def to_picture(x, y):
+    """A mouse position on the window as a position on the picture last shown (undoes the scaling and the black bars of show())."""
+    scale, x0, y0 = _placement
+    return (x - x0) / scale, (y - y0) / scale
 
 
 def fit(image, width, height):
@@ -44,6 +47,11 @@ def show(name, image):
         _, _, width, height = cv2.getWindowImageRect(name)
     except cv2.error:
         width = height = 0
+    global _placement
+    _placement = (1.0, 0.0, 0.0)
     if width > 0 and height > 0 and (width, height) != (image.shape[1], image.shape[0]):
+        h, w = image.shape[:2]
+        scale = min(width / w, height / h)
+        _placement = (scale, (width - max(int(w * scale), 1)) // 2, (height - max(int(h * scale), 1)) // 2)
         image = fit(image, width, height)
     cv2.imshow(name, image)

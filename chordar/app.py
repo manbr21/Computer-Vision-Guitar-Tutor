@@ -17,11 +17,10 @@ from chordar.reference import capture_reference
 from chordar.scoring import NoteStabilizer, corrected_points
 from chordar import ui
 from chordar.zoom import NeckZoom
-from chordar.window import open_window, show
+from chordar.window import WINDOW, open_window, show
 
 log = logging.getLogger(__name__)
 
-WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
 CHORD_NAMES = ["A", "Am", "C", "D", "Dm", "E", "Em", "G"]
 # the key bar always on the screen, and the sections of the help panel (H): (title, [(key, what it does)])

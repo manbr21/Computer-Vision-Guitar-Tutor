@@ -22,11 +22,10 @@ from chordar.frets import snap_corners
 from chordar.markerless import MarklessTracker, NeckReference
 from chordar import ui
 from chordar.overlay import draw_neck
-from chordar.window import scale_up
+from chordar.window import WINDOW, open_window, show, to_picture
 from chordar.placement import (MIN_STRING_GAP, alignment_metrics, evaluate, lighting_check, set_reference_center,
                                set_reference_distance)
 
-WINDOW = "ChordAR reference"
 MIN_VISIBLE_FRETS = 10   # fewer fret wires than this found in the photo: the light is too poor to see the frets
 _EDGE = "string" if config.MARKER_PLACEMENT == "outer_strings" else "edge of the fretboard"
 # in the order TL, TR, BR, BL, as the neck looks on the (mirrored) screen: nut on the left, low E string on top
@@ -151,7 +150,7 @@ def take_photo(capture):
         view = cv2.flip(frame, 1)
         light = lighting_check(float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).mean()))
         photo_screen(view, None if light["ok"] else light["hint"])
-        cv2.imshow(WINDOW, scale_up(view))
+        show(WINDOW, view)
         key = cv2.waitKey(1) & 0xFF
         if key == 32:
             return frame
@@ -210,7 +209,8 @@ def click_corners(frame):
 
     def on_mouse(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN and len(clicks) < 4:
-            clicks.append((int(round(x / config.WINDOW_SCALE)), int(round(y / config.WINDOW_SCALE))))   # the window shows the picture scaled up
+            px, py = to_picture(x, y)   # the window shows the picture scaled, with bars
+            clicks.append((int(round(px)), int(round(py))))
 
     cv2.setMouseCallback(WINDOW, on_mouse)
     while True:
@@ -224,7 +224,7 @@ def click_corners(frame):
                 bounds = info["fret_bounds"]
             hint = photo_hint(chosen, (view.shape[1], view.shape[0]))
         shown = click_screen(view, clicks, chosen, info, hint, warned, use_snap, bounds)
-        cv2.imshow(WINDOW, scale_up(shown))
+        show(WINDOW, shown)
         key = cv2.waitKey(20) & 0xFF
         if key == 27:
             return None
@@ -261,7 +261,7 @@ def capture_reference(capture, save_to=None):
     to the real fret wires) and the advice on the photo. Returns a MarklessTracker built on the new reference, or
     None if the user cancelled. The reference is also saved to `save_to`, if given.
     """
-    cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
+    open_window(WINDOW)
     try:
         while True:
             frame = take_photo(capture)
@@ -280,7 +280,7 @@ def capture_reference(capture, save_to=None):
                 shown = cv2.flip(frame, 1)
                 _text(shown, str(error), 30, (0, 165, 255))
                 _text(shown, "Taking a new photo...", 62)
-                cv2.imshow(WINDOW, scale_up(shown))
+                show(WINDOW, shown)
                 cv2.waitKey(2500)
                 continue
             adopt_placement(corners, (frame.shape[1], frame.shape[0]))
@@ -292,8 +292,7 @@ def capture_reference(capture, save_to=None):
                     pass
             return tracker
     finally:
-        cv2.destroyWindow(WINDOW)
-        cv2.waitKey(1)
+        pass   # the window stays: the app goes on in the same one
 
 
 def main():
@@ -321,7 +320,7 @@ def main():
     capture = None if args.image else cv2.VideoCapture(args.camera)
     if capture is not None and not capture.isOpened():
         sys.exit(f"Could not open camera {args.camera}")
-    cv2.namedWindow(WINDOW, cv2.WINDOW_AUTOSIZE)
+    open_window(WINDOW)
     while True:
         if capture is not None:
             frame = take_photo(capture)

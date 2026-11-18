@@ -55,10 +55,21 @@ def main():
     draw_arrow(a1, (50, 100), (300, 100), 10, now=0.05)
     check("the arrow is animated (its dashes move with time)", not np.array_equal(a0, a1))
     check("... and still points at the note (the head is near the end)", float(np.abs(a0[90:110, 280:292].astype(int) - 90).mean()) > 20)
-    from chordar import config
-    from chordar.window import scale_up
-    check("the windows are bigger than the picture by config.WINDOW_SCALE, keeping its proportions",
-          config.WINDOW_SCALE > 1.0 and scale_up(np.zeros((720, 1280, 3), np.uint8)).shape[:2] == (round(720 * config.WINDOW_SCALE), round(1280 * config.WINDOW_SCALE)))
+    from unittest import mock
+    import cv2
+    from chordar import app as app_module, config, reference as ref_module, window
+    check("the set-up screens and the app share one window (so a window recording catches both)", ref_module.WINDOW is window.WINDOW and app_module.WINDOW is window.WINDOW)
+    picture = np.zeros((720, 1280, 3), np.uint8)
+    with mock.patch.object(cv2, "resizeWindow") as resize, mock.patch.object(cv2, "imshow"), \
+            mock.patch.object(cv2, "getWindowImageRect", return_value=(0, 0, 1600, 1000)):
+        window._sized.discard("test")
+        window.show("test", picture)
+    check("the window opens config.WINDOW_SCALE times the picture", config.WINDOW_SCALE > 1.0 and resize.call_args[0][1:] == (round(1280 * config.WINDOW_SCALE), round(720 * config.WINDOW_SCALE)))
+    x, y = window.to_picture(800, 500)
+    check(f"a click on a window with black bars is turned back into picture coordinates ({x:.0f}, {y:.0f})", abs(x - 640) < 2 and abs(y - 360) < 2)
+    with mock.patch.object(cv2, "imshow"), mock.patch.object(cv2, "getWindowImageRect", return_value=(0, 0, 1280, 720)):
+        window.show("test", picture)
+    check("with the window as big as the picture the click is not changed", window.to_picture(300, 200) == (300.0, 200.0))
     if failures:
         print("\nFAIL:\n  " + "\n  ".join(failures))
         sys.exit(1)
