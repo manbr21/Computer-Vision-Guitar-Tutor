@@ -22,8 +22,11 @@ def main():
                         "saved at every start)")
     parser.add_argument("--markers", action="store_true", help="track the neck with four ArUco markers instead of a photo")
     parser.add_argument("--record", metavar="FOLDER", help="save the camera video and the detected neck corners of this session under FOLDER")
+    parser.add_argument("--window-scale", type=float, default=config.WINDOW_SCALE, metavar="X",
+                        help="size of the windows relative to the camera picture (default %(default)s; 1.0 for a small screen)")
     parser.add_argument("--debug", action="store_true", help="log what the detectors see")
     args = parser.parse_args()
+    config.WINDOW_SCALE = args.window_scale
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO, format="[%(name)s] %(message)s")
 
     capture = cv2.VideoCapture(args.camera)

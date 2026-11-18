@@ -55,6 +55,10 @@ def main():
     draw_arrow(a1, (50, 100), (300, 100), 10, now=0.05)
     check("the arrow is animated (its dashes move with time)", not np.array_equal(a0, a1))
     check("... and still points at the note (the head is near the end)", float(np.abs(a0[90:110, 280:292].astype(int) - 90).mean()) > 20)
+    from chordar import config
+    from chordar.window import scale_up
+    check("the windows are bigger than the picture by config.WINDOW_SCALE, keeping its proportions",
+          config.WINDOW_SCALE > 1.0 and scale_up(np.zeros((720, 1280, 3), np.uint8)).shape[:2] == (round(720 * config.WINDOW_SCALE), round(1280 * config.WINDOW_SCALE)))
     if failures:
         print("\nFAIL:\n  " + "\n  ".join(failures))
         sys.exit(1)

@@ -45,6 +45,9 @@ COMMON_FRET_SHIFT = 0.0   # which absorbs what changes with the camera height an
 NOTE_ON_FRAMES = 3        # a note turns green after being covered this many frames in a row ...
 NOTE_OFF_FRAMES = 4       # ... and stays green until it has been missed this many frames in a row
 
+WINDOW_SCALE = 1.25     # size of the windows relative to the camera picture (1.0: as big as the picture; the app is drawn at the picture's size and scaled,
+                        # so everything keeps its proportions). python -m chordar --window-scale 1.0 for a small screen
+
 MAX_HANDS = 1            # hands MediaPipe may track: only the fretting hand is looked at (see hands.fretting_hand_region)
 FINGER_HEIGHT_MM = 10.0   # fingertip height above the fretboard surface when pressing
 CAMERA_HFOV_DEG = 65.0    # horizontal field of view of the webcam (laptop webcams: ~60-78)

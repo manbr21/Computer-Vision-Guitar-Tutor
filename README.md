@@ -42,6 +42,8 @@ taking a new one (it only works with similar light and a guitar held in a simila
 | `H` | the keys, by what they do (the most useful ones are always on the bar at the bottom left) |
 | `ESC` | quit |
 
+The windows open 1.25 times the size of the camera picture (everything keeps its proportions); `--window-scale 1.0` for a small screen.
+
 Keys for tuning, not shown in the app's help: `D` technical panel (pose, parallax, fingertip labels, FPS, microphone
 level), and while it is on, `P` turns the parallax correction on and off and `X` swaps between the two camera-pose solutions.
 

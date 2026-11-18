@@ -3,9 +3,21 @@ import cv2
 import numpy as np
 
 
+_sized = set()
+
+
 def open_window(name):
-    """Creates a resizable window. For a bigger picture, enlarge it with the mouse or the green button of macOS."""
+    """Creates a resizable window (config.WINDOW_SCALE times the picture; it can be enlarged with the mouse or the green button of macOS)."""
     cv2.namedWindow(name, cv2.WINDOW_NORMAL)
+    _sized.discard(name)
+
+
+def scale_up(image):
+    """The picture at config.WINDOW_SCALE times its size, for windows that show it as it is (the set-up screens)."""
+    from chordar import config
+    if config.WINDOW_SCALE == 1.0:
+        return image
+    return cv2.resize(image, None, fx=config.WINDOW_SCALE, fy=config.WINDOW_SCALE, interpolation=cv2.INTER_LINEAR)
 
 
 def fit(image, width, height):
@@ -21,6 +33,13 @@ def fit(image, width, height):
 
 def show(name, image):
     """Shows the image in the window, keeping its aspect ratio when the window is larger than the image."""
+    if name not in _sized:   # the first picture sets the size of the window
+        from chordar import config
+        _sized.add(name)
+        try:
+            cv2.resizeWindow(name, int(image.shape[1] * config.WINDOW_SCALE), int(image.shape[0] * config.WINDOW_SCALE))
+        except cv2.error:
+            pass
     try:
         _, _, width, height = cv2.getWindowImageRect(name)
     except cv2.error:

@@ -22,6 +22,7 @@ from chordar.frets import snap_corners
 from chordar.markerless import MarklessTracker, NeckReference
 from chordar import ui
 from chordar.overlay import draw_neck
+from chordar.window import scale_up
 from chordar.placement import (MIN_STRING_GAP, alignment_metrics, evaluate, lighting_check, set_reference_center,
                                set_reference_distance)
 
@@ -150,7 +151,7 @@ def take_photo(capture):
         view = cv2.flip(frame, 1)
         light = lighting_check(float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).mean()))
         photo_screen(view, None if light["ok"] else light["hint"])
-        cv2.imshow(WINDOW, view)
+        cv2.imshow(WINDOW, scale_up(view))
         key = cv2.waitKey(1) & 0xFF
         if key == 32:
             return frame
@@ -209,7 +210,7 @@ def click_corners(frame):
 
     def on_mouse(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN and len(clicks) < 4:
-            clicks.append((x, y))
+            clicks.append((int(round(x / config.WINDOW_SCALE)), int(round(y / config.WINDOW_SCALE))))   # the window shows the picture scaled up
 
     cv2.setMouseCallback(WINDOW, on_mouse)
     while True:
@@ -223,7 +224,7 @@ def click_corners(frame):
                 bounds = info["fret_bounds"]
             hint = photo_hint(chosen, (view.shape[1], view.shape[0]))
         shown = click_screen(view, clicks, chosen, info, hint, warned, use_snap, bounds)
-        cv2.imshow(WINDOW, shown)
+        cv2.imshow(WINDOW, scale_up(shown))
         key = cv2.waitKey(20) & 0xFF
         if key == 27:
             return None
@@ -279,7 +280,7 @@ def capture_reference(capture, save_to=None):
                 shown = cv2.flip(frame, 1)
                 _text(shown, str(error), 30, (0, 165, 255))
                 _text(shown, "Taking a new photo...", 62)
-                cv2.imshow(WINDOW, shown)
+                cv2.imshow(WINDOW, scale_up(shown))
                 cv2.waitKey(2500)
                 continue
             adopt_placement(corners, (frame.shape[1], frame.shape[0]))
