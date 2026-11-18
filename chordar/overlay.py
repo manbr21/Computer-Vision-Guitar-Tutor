@@ -136,7 +136,7 @@ def draw_gauge(display, center, radius, percent):
     cv2.putText(display, text, (center[0] - w // 2, center[1] + h // 2), FONT, 0.8, (255, 255, 255), 2)
 
 
-def draw_banner(display, text, color, y_from_bottom=60):
+def draw_banner(display, text, color, y_from_bottom=78):
     """One short message, large, centered near the bottom of the image."""
     scale = 0.9
     (w, _), _ = cv2.getTextSize(text, FONT, scale, 2)

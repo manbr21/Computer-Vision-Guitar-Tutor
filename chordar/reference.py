@@ -20,6 +20,7 @@ from chordar.calibration import draw_ghost, ghost_point
 from chordar.geometry import Fretboard
 from chordar.frets import snap_corners
 from chordar.markerless import MarklessTracker, NeckReference
+from chordar import ui
 from chordar.overlay import draw_neck
 from chordar.placement import (MIN_STRING_GAP, alignment_metrics, evaluate, lighting_check, set_reference_center,
                                set_reference_distance)
@@ -58,59 +59,86 @@ def photo_hint(clicks, size):
 
 
 def _text(img, text, y, color=(255, 255, 255)):
-    cv2.putText(img, text, (20, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 4)
-    cv2.putText(img, text, (20, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+    ui.text(img, text, (20, y), 0.7, color, 2)
 
 
-GUIDE_ORIGIN, GUIDE_SIZE = (20, 130), (250, 78)   # where the little neck that shows the corner to click is drawn
+GUIDE_ORIGIN, GUIDE_SIZE = (20, 112), (500, 200)   # the panel with the big little neck that shows the corner to click: top-left, width x height
 # the corners in the order they are clicked, in the neck's own coordinates (u across: 0 low E / top, 1 high e / bottom; t along: 0 nut / left)
 CORNER_ORDER = ((0, 0), (1, 0), (1, 1), (0, 1))
+CORNER_TEXT = ("the nut, at the thickest string (top)", "the nut, at the thinnest string (bottom)",
+               "fret 12 wire, at the thinnest string (bottom)", "fret 12 wire, at the thickest string (top)")
 
 
 def draw_click_guide(img, step, now=None):
     """
-    A small see-through neck in the corner of the screen (nut on the left, low E on top, like the photo) with the corner to
-    click next marked by a pulsing ring, the ones already clicked in green. Nothing is marked on the photo itself: a guess
-    of where the corner should be on the guitar was often wrong at fret 12, and the user clicks what the photo shows.
+    A see-through neck in a panel at the top-left (nut on the left, low E on top, like the photo, with the position dots: one at
+    frets 3, 5, 7, 9 and two at 12, which is how the 12th fret is found) and the corner to click next marked by a pulsing
+    ring, the ones already clicked in green. Nothing is marked on the photo itself: a guess of where the corner should be
+    on the guitar was often wrong at fret 12, and the user clicks what the photo shows.
     """
     now = time.time() if now is None else now
     pulse = 0.5 + 0.5 * math.sin(now * 6)
     x0, y0 = GUIDE_ORIGIN
     w, h = GUIDE_SIZE
-    pad = 22
+    ui.panel(img, x0, y0, x0 + w, y0 + h, alpha=0.74, radius=12, border=ui.ACCENT_DIM)
+    ui.text(img, "WHERE TO CLICK", (x0 + 16, y0 + 26), 0.5, ui.ACCENT, 1, shadow=False)
+    ui.progress(img, min(step, 4), 4, x0 + w - 4 * 34 + 12, y0 + 22)
+    nx0, nx1, ny0, ny1 = x0 + 84, x0 + w - 52, y0 + 62, y0 + 62 + 76
 
     def spot(u, t):
-        return int(x0 + pad + t * (w - 2 * pad)), int(y0 + 10 + u * (h - 20))
+        return int(nx0 + t * (nx1 - nx0)), int(ny0 + u * (ny1 - ny0))
 
-    shade = img.copy()
-    cv2.rectangle(shade, (x0, y0 - 14), (x0 + w, y0 + h + 14), (20, 20, 20), -1)
-    cv2.addWeighted(shade, 0.55, img, 0.45, 0, dst=img)
     outline = np.array([spot(0, 0), spot(1, 0), spot(1, 1), spot(0, 1)], np.int32)
-    overlay = img.copy()
-    cv2.fillPoly(overlay, [outline], (60, 90, 140))
-    cv2.addWeighted(overlay, 0.5, img, 0.5, 0, dst=img)
+    layer = img.copy()
+    cv2.fillPoly(layer, [outline], (75, 90, 120))
+    cv2.addWeighted(layer, 0.45, img, 0.55, 0, dst=img)
     for s in range(6):
-        cv2.line(img, spot(s / 5, 0), spot(s / 5, 1), (225, 225, 225), 1)
-    for n in (1, 3, 5, 7, 9, 12):
+        cv2.line(img, spot(s / 5, 0), spot(s / 5, 1), (215, 215, 215), 1, cv2.LINE_AA)
+    for n in range(1, 13):
         t = 2 * (1 - 2 ** (-n / 12))
-        cv2.line(img, spot(0, t), spot(1, t), (0, 200, 255) if n == 12 else (150, 150, 150), 1)
-    cv2.line(img, spot(0, 0), spot(1, 0), (255, 255, 255), 3)   # the nut
-    cv2.polylines(img, [outline], True, (255, 255, 255), 1)
-    cv2.putText(img, "nut", (x0 + 2, y0 + h + 10), FONT_GUIDE, 0.4, (255, 255, 255), 1)
-    cv2.putText(img, "fret 12", (x0 + w - 52, y0 + h + 10), FONT_GUIDE, 0.4, (0, 200, 255), 1)
-    cv2.putText(img, "low E", (x0 + 2, y0 - 2), FONT_GUIDE, 0.4, (255, 255, 255), 1)
+        cv2.line(img, spot(0, t), spot(1, t), ui.WARN if n == 12 else (125, 125, 125), 3 if n == 12 else 1, cv2.LINE_AA)
+    for n in (3, 5, 7, 9, 12):
+        t_mid = (2 * (1 - 2 ** (-(n - 1) / 12)) + 2 * (1 - 2 ** (-n / 12))) / 2
+        for u in ((0.5,) if n != 12 else (0.3, 0.7)):
+            cv2.circle(img, spot(u, t_mid), 4, ui.ACCENT_DIM, -1, cv2.LINE_AA)
+    cv2.line(img, spot(0, 0), spot(1, 0), (255, 255, 255), 5, cv2.LINE_AA)       # the nut
+    cv2.polylines(img, [outline], True, (255, 255, 255), 1, cv2.LINE_AA)
+    ui.text(img, "NUT", (nx0 - 14, ny1 + 30), 0.5, (255, 255, 255), 1, shadow=False)
+    ui.text(img, "FRET 12", (nx1 - 36, ny1 + 30), 0.5, ui.WARN, 1, shadow=False)
+    ui.text(img, "low E", (x0 + 14, ny0 + 5), 0.42, ui.MUTED, 1, shadow=False)
+    ui.text(img, "high e", (x0 + 12, ny1 + 4), 0.42, ui.MUTED, 1, shadow=False)
     for i, (u, t) in enumerate(CORNER_ORDER):
         centre = spot(u, t)
         if i < step:
-            cv2.circle(img, centre, 5, (0, 200, 0), -1)
+            cv2.circle(img, centre, 8, ui.GOOD, -1, cv2.LINE_AA)
+            ui.text(img, str(i + 1), (centre[0] - 4, centre[1] + 5), 0.45, (30, 30, 30), 1, shadow=False)
         elif i == step:
-            cv2.circle(img, centre, int(7 + 6 * pulse), (0, 165, 255), 2)
-            cv2.circle(img, centre, 4, (0, 255, 255), -1)
+            cv2.circle(img, centre, int(11 + 8 * pulse), ui.ACCENT, 3, cv2.LINE_AA)
+            cv2.circle(img, centre, 9, ui.ACCENT, -1, cv2.LINE_AA)
+            ui.text(img, str(i + 1), (centre[0] - 4, centre[1] + 5), 0.5, (30, 30, 30), 1, shadow=False)
         else:
-            cv2.circle(img, centre, 4, (150, 150, 150), 1)
+            cv2.circle(img, centre, 8, (150, 150, 150), 1, cv2.LINE_AA)
+            ui.text(img, str(i + 1), (centre[0] - 4, centre[1] + 5), 0.45, (170, 170, 170), 1, shadow=False)
+    if step >= 4:
+        ui.text(img, "All four corners marked", (x0 + 16, y0 + h - 14), 0.5, ui.GOOD, 1, shadow=False)
+    else:
+        ui.text(img, "The ringed corner is the one to click on the photo", (x0 + 16, y0 + h - 14), 0.45, ui.MUTED, 1, shadow=False)
 
 
-FONT_GUIDE = cv2.FONT_HERSHEY_SIMPLEX
+def photo_screen(view, light_hint=None):
+    """The 'take the photo' screen drawn on a mirrored camera view: the target outline, the instructions and the keys."""
+    draw_ghost(view, False)
+    h, w = view.shape[:2]
+    ui.header(view, "STEP 1 OF 2", "Take the reference photo", "Hold the guitar as you will play it, with the neck inside the outline")
+    ui.panel(view, 20, h - 150, 660, h - 62, alpha=0.7, radius=12)
+    for i, (label, line) in enumerate((("NOTEBOOK", "base at thigh height; tilt the screen until the neck fits the outline"),
+                                       ("LIGHT", "on the frets, so the wires can be seen"),
+                                       ("HAND", "fretting hand off the neck"))):
+        ui.text(view, label, (36, h - 122 + 24 * i), 0.5, ui.ACCENT, 1, shadow=False)
+        ui.text(view, line, (130, h - 122 + 24 * i), 0.5, ui.TEXT, 1, shadow=False)
+    if light_hint:
+        ui.pill(view, light_hint, 20, h - 198, ui.WARN, 0.6)
+    ui.key_row(view, [("SPACE", "Take the photo"), ("ESC", "Cancel")], 20, h - 46)
 
 
 def take_photo(capture):
@@ -120,19 +148,55 @@ def take_photo(capture):
         if not ok:
             return None
         view = cv2.flip(frame, 1)
-        draw_ghost(view, False)
-        _text(view, "Put the neck inside the outline, as you will play it, hand off the neck", 30)
-        _text(view, "SPACE: take the photo   ESC: cancel", 62)
-        _text(view, "Notebook base at thigh height; tilt the screen until the neck fits the outline", 94, (255, 255, 255))
         light = lighting_check(float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).mean()))
-        if not light["ok"]:
-            _text(view, light["hint"], 94, (0, 165, 255))
+        photo_screen(view, None if light["ok"] else light["hint"])
         cv2.imshow(WINDOW, view)
         key = cv2.waitKey(1) & 0xFF
         if key == 32:
             return frame
         if key == 27:
             return None
+
+
+def click_screen(view, clicks, chosen=None, info=None, hint=None, warned=False, use_snap=True, bounds=None, now=None):
+    """
+    The 'mark the corners' screen drawn on a copy of the photo: the clicks, then (with four) the fitted neck, what was found
+    and the keys. Returns the image to show.
+    """
+    shown = view.copy()
+    h, w = shown.shape[:2]
+    for i, (x, y) in enumerate(clicks):
+        cv2.circle(shown, (x, y), 7, ui.BAD, -1, cv2.LINE_AA)
+        cv2.circle(shown, (x, y), 9, (255, 255, 255), 1, cv2.LINE_AA)
+        ui.text(shown, str(i + 1), (x + 12, y - 10), 0.7, (0, 255, 255), 2)
+    if len(clicks) < 4:
+        ui.header(shown, "STEP 2 OF 2", "Mark the four corners of the neck", f"Click {len(clicks) + 1} of 4: {CORNER_TEXT[len(clicks)]}")
+        draw_click_guide(shown, len(clicks), now)
+        ui.key_row(shown, [("CLICK", "Mark the corner"), ("R", "Start again"), ("T", "New photo"), ("ESC", "Cancel")], 20, h - 46)
+        return shown
+    draw_neck(shown, Fretboard(*[tuple(map(float, c)) for c in chosen], fret_bounds=bounds))
+    ui.header(shown, "STEP 2 OF 2", "Check the neck", "The grid should sit on the frets and the strings of the photo" if hint is None
+              else "The grid should sit on the frets and the strings; the photo has a problem")
+    y = 112
+    if hint is None:
+        y = ui.pill(shown, "Good photo", 20, y, ui.GOOD) and y + 44
+    else:
+        text = f"{hint}. ENTER again to save anyway" if warned else f"Not ideal: {hint}"
+        ui.pill(shown, text, 20, y, ui.WARN)
+        y += 44
+    seen = 0 if info is None else info["matched"]
+    if info is None:
+        ui.pill(shown, "No fret wires found: your clicks are used as they are", 20, y, ui.WARN, 0.55)
+    elif seen < MIN_VISIBLE_FRETS:
+        ui.pill(shown, f"Only {seen} of 12 frets are visible: more light on the neck, then T for a new photo", 20, y, ui.WARN, 0.55)
+    elif use_snap:
+        ui.pill(shown, f"Frets fitted to the real wires (nut {info['nut_shift_px']:+.0f} px, off by {info['rms_px']:.1f} px)", 20, y, ui.ACCENT, 0.55)
+    else:
+        ui.pill(shown, "Using your clicks as they are", 20, y, ui.ACCENT, 0.55)
+    keys = [("ENTER", "Save"), ("R", "Click again"), ("U", "Snap to wires on/off"), ("T", "New photo"), ("ESC", "Cancel")]
+    ui.panel(shown, 12, h - 58, 12 + ui.row_width(keys) + 24, h - 8, alpha=0.7, radius=10)
+    ui.key_row(shown, keys, 24, h - 48)
+    return shown
 
 
 def click_corners(frame):
@@ -149,39 +213,16 @@ def click_corners(frame):
 
     cv2.setMouseCallback(WINDOW, on_mouse)
     while True:
-        shown = view.copy()
-        for i, (x, y) in enumerate(clicks):
-            cv2.circle(shown, (x, y), 6, (0, 0, 255), -1)
-            cv2.putText(shown, str(i + 1), (x + 8, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-        chosen, hint = clicks, None
+        chosen, hint, bounds, info = clicks, None, None, None
         if len(clicks) == 4:
             if snapped is None:
                 snapped = snap_corners(view, np.array(clicks, np.float32))
-            if use_snap and snapped[1] is not None:
-                chosen = [tuple(map(float, c)) for c in snapped[0]]
-            hint = photo_hint(chosen, (view.shape[1], view.shape[0]))
-            bounds = snapped[1]["fret_bounds"] if use_snap and snapped[1] is not None else None
-            draw_neck(shown, Fretboard(*[tuple(map(float, c)) for c in chosen], fret_bounds=bounds))
             info = snapped[1]
-            if info is None or info["matched"] < MIN_VISIBLE_FRETS:
-                seen = 0 if info is None else info["matched"]
-                _text(shown, f"Only {seen} of 12 frets are visible: more light on the neck, then T for a new photo", 126, (0, 165, 255))
-            if info is None:
-                _text(shown, "No fret wires found: using your clicks as they are", 94, (0, 165, 255))
-            elif use_snap:
-                _text(shown, f"Frets fitted to the real wires (nut {info['nut_shift_px']:+.0f} px, off by {info['rms_px']:.1f} px). U: use my clicks", 94, (255, 255, 0))
-            else:
-                _text(shown, "Using your clicks. U: snap to the real fret wires", 94, (255, 255, 0))
-            if hint is None:
-                _text(shown, "Good photo. ENTER: save, R: click again, T: new photo, ESC: cancel", 30, (0, 255, 0))
-            elif warned:
-                _text(shown, f"{hint}. ENTER again: save anyway, T: new photo", 30, (0, 165, 255))
-            else:
-                _text(shown, f"Not ideal: {hint}", 30, (0, 165, 255))
-                _text(shown, "T: new photo, R: click again, ENTER: save anyway", 62, (0, 165, 255))
-        else:
-            _text(shown, "Click: " + PROMPTS[len(clicks)], 30, (0, 255, 255))
-            draw_click_guide(shown, len(clicks))
+            if use_snap and info is not None:
+                chosen = [tuple(map(float, c)) for c in snapped[0]]
+                bounds = info["fret_bounds"]
+            hint = photo_hint(chosen, (view.shape[1], view.shape[0]))
+        shown = click_screen(view, clicks, chosen, info, hint, warned, use_snap, bounds)
         cv2.imshow(WINDOW, shown)
         key = cv2.waitKey(20) & 0xFF
         if key == 27:

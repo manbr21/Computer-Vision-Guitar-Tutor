@@ -5,7 +5,7 @@ import time
 import cv2
 
 from chordar.calibration import run_calibration
-from chordar.chords import MAX_CAPO, RELIABLE_CAPO, fretted_notes, reading_bias
+from chordar.chords import MAX_CAPO, fretted_notes, reading_bias
 from chordar.hands import FingertipTracker, fretting_hand_region
 from chordar.markerless import MarklessTracker
 from chordar.markers import MarkerTracker
@@ -15,6 +15,7 @@ from chordar.overlay import (draw_arrow, draw_banner, draw_capo, draw_chord_diag
 from chordar.placement import PlacementMonitor
 from chordar.reference import capture_reference
 from chordar.scoring import NoteStabilizer, corrected_points
+from chordar import ui
 from chordar.zoom import NeckZoom
 from chordar.window import open_window, show
 
@@ -22,8 +23,13 @@ log = logging.getLogger(__name__)
 
 WINDOW = "ChordAR"
 CHORD_KEYS = {ord(key): chord for key, chord in zip("12345678", ["A", "Am", "C", "D", "Dm", "E", "Em", "G"])}
-HELP_LINES = ["1-8   choose the chord", "[ ]   capo up / down (0 removes it)", "A     auto-advance on a perfect strum",
-              "O     hide / show the neck lines", "Z     zoom on the neck and hand", "C     take a new photo", "H     this help", "ESC   quit"]
+CHORD_NAMES = ["A", "Am", "C", "D", "Dm", "E", "Em", "G"]
+# the key bar always on the screen, and the sections of the help panel (H): (title, [(key, what it does)])
+KEY_BAR = [("1-8", "Chord"), ("[ ]", "Capo"), ("Z", "Zoom"), ("H", "All keys")]
+HELP_SECTIONS = [("CAPO", [("[", "capo down"), ("]", "capo up (max %d)" % MAX_CAPO), ("0", "no capo")]),
+                 ("VIEW", [("Z", "zoom on the neck"), ("O", "neck lines on/off"), ("D", "technical info")]),
+                 ("PLAY", [("A", "auto-advance on strum")]),
+                 ("SET UP", [("C", "new photo"), ("H", "this help"), ("ESC", "quit")])]
 # keys that are not listed in the help, for tuning and debugging: D shows the technical panel, which lists P and X
 LAST_REFERENCE = "references/last.npz"  # the photo of the latest set-up, to reuse with --reference
 STRUM_BANNER_S = 2.0  # how long the result of a strum stays on screen
@@ -137,7 +143,7 @@ class ChordARApp:
         if self.show_help:
             self._draw_help(display)
         else:
-            put_text_bg(display, "H: help", (20, size[1] - 20), 0.5, GRAY, thickness=1)
+            self._draw_key_bar(display)
         return display
 
     def handle_key(self, key):
@@ -218,8 +224,6 @@ class ChordARApp:
         elif drift_hint is not None:
             draw_banner(display, f"{drift_hint} (C: " + ("new photo)" if self.markerless else "recalibrate)"), ORANGE)
         elif coaching is not None:
-            if self.capo > RELIABLE_CAPO:
-                put_text_bg(display, f"Capo above fret {RELIABLE_CAPO}: the fingers are read less reliably", (20, 100), 0.5, ORANGE, thickness=1)
             text = coaching.message
             if text == "Perfect!" and self.audio is not None and self.audio.active:
                 text += " Now strum it"
@@ -230,15 +234,29 @@ class ChordARApp:
         draw_chord_diagram(display, x, y, width, height, self.chord, self.capo)
 
     def _draw_help(self, display):
-        pad, line_h = 12, 24
-        width = 370
-        height = len(HELP_LINES) * line_h + 2 * pad
-        x, y = 20, display.shape[0] - height - 20
-        shade = display.copy()
-        cv2.rectangle(shade, (x, y), (x + width, y + height), (30, 30, 30), -1)
-        cv2.addWeighted(shade, 0.8, display, 0.2, 0, dst=display)
-        for i, line in enumerate(HELP_LINES):
-            cv2.putText(display, line, (x + pad, y + pad + 16 + i * line_h), cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1)
+        """The keys, by what they do, in a panel under the header (H closes it): the chords in a row, then one column per topic."""
+        x, y, width, row = 20, 108, 1000, 32
+        height = 36 + 56 + 24 + 3 * row + 14
+        ui.panel(display, x, y, x + width, y + height, alpha=0.84, radius=14, border=ui.ACCENT_DIM)
+        ui.text(display, "KEYS", (x + 18, y + 28), 0.6, ui.ACCENT, 1, shadow=False)
+        ui.text(display, "Press H to close", (x + width - 150, y + 28), 0.45, ui.MUTED, 1, shadow=False)
+        ui.text(display, "CHORD", (x + 18, y + 56), 0.45, ui.MUTED, 1, shadow=False)
+        for i, name in enumerate(CHORD_NAMES):          # 1 A  2 Am  3 C ...
+            cx = x + 90 + i * 110
+            end = ui.key_cap(display, str(i + 1), cx, y + 38)
+            ui.text(display, name, (end + 8, y + 59), 0.55, ui.TEXT, 1, shadow=False)
+        for column, (title, items) in enumerate(HELP_SECTIONS):
+            cx, cy = x + 18 + column * 245, y + 36 + 56
+            ui.text(display, title, (cx, cy + 4), 0.45, ui.MUTED, 1, shadow=False)
+            for k, (key, what) in enumerate(items):
+                end = ui.key_cap(display, key, cx, cy + 14 + k * row)
+                ui.text(display, what, (end + 10, cy + 14 + k * row + 21), 0.5, ui.TEXT, 1, shadow=False)
+
+    def _draw_key_bar(self, display):
+        """The few keys that matter, always at the bottom left."""
+        h = display.shape[0]
+        ui.panel(display, 12, h - 56, 12 + ui.row_width(KEY_BAR) + 24, h - 10, alpha=0.62, radius=10)
+        ui.key_row(display, KEY_BAR, 24, h - 48)
 
     def _draw_debug(self, display, neck, now):
         """Technical details for tuning: parallax and pose, camera angle, FPS and the microphone level."""

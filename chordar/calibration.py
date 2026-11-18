@@ -31,35 +31,39 @@ def ghost_point(u, t, image_size):
 
 
 def draw_ghost(display, aligned):
-    """Draws the target neck like a real fretboard (wood, nut, frets, inlays, strings) where the guitar should be."""
+    """
+    The target neck, drawn as light aqua contours (outline, nut, fret wires, strings, inlay rings) with hardly any fill, so
+    the real neck can be seen through it while it is moved into place. Green once it is aligned.
+    """
+    from chordar import ui
     size = (display.shape[1], display.shape[0])
-    accent = GOOD_COLOR if aligned else (235, 235, 235)
+    accent = ui.GOOD if aligned else ui.ACCENT
     u_min, u_max = outline_u_range()
 
     def point(u, t):
         return ghost_point(u, t, size)
 
     outline = np.array([point(u_min, 0), point(u_max, 0), point(u_max, 1), point(u_min, 1)], dtype=np.int32)
-    shade = display.copy()
-    cv2.fillPoly(shade, [outline], (30, 50, 90))  # dark rosewood, see-through
-    cv2.addWeighted(shade, 0.5, display, 0.5, 0, dst=display)
+    tint = display.copy()
+    cv2.fillPoly(tint, [outline], (70, 62, 40))            # only a hint of colour in the middle
+    cv2.addWeighted(tint, 0.18, display, 0.82, 0, dst=display)
 
+    lines = display.copy()
     for n in FRET_INLAYS + (12,):
         t_mid = (FRET_BOUNDS[n - 1] + FRET_BOUNDS[n]) / 2
-        radius = max(int(0.3 * math.dist(point(string_u(1), t_mid), point(string_u(0), t_mid))), 3)
+        radius = max(int(0.22 * math.dist(point(string_u(1), t_mid), point(string_u(0), t_mid))), 3)
         for u in ((0.5,) if n != 12 else (0.3, 0.7)):
-            cv2.circle(display, point(u, t_mid), radius, (205, 215, 220), -1)
-
+            cv2.circle(lines, point(u, t_mid), radius, accent, 2, cv2.LINE_AA)
     for n in range(1, config.NUM_FRETS + 1):
-        cv2.line(display, point(u_min, FRET_BOUNDS[n]), point(u_max, FRET_BOUNDS[n]), (200, 200, 200), 1)
-    cv2.line(display, point(u_min, 0), point(u_max, 0), (225, 235, 240), 4)  # nut
+        cv2.line(lines, point(u_min, FRET_BOUNDS[n]), point(u_max, FRET_BOUNDS[n]), accent, 1, cv2.LINE_AA)
     for s in range(config.NUM_STRINGS):
-        cv2.line(display, point(string_u(s), 0), point(string_u(s), 1), STRING_COLORS[s], STRING_THICKNESS[s])
-
-    cv2.polylines(display, [outline], True, accent, 2)
-    label_x, label_y = outline[0]
-    put_text_bg(display, "Place the neck inside this outline", (int(label_x), max(int(label_y) - 12, 20)),
-                0.5, accent, thickness=1)
+        cv2.line(lines, point(string_u(s), 0), point(string_u(s), 1), accent, 1, cv2.LINE_AA)
+    cv2.addWeighted(lines, 0.6, display, 0.4, 0, dst=display)
+    cv2.line(display, point(u_min, 0), point(u_max, 0), accent, 5, cv2.LINE_AA)        # nut
+    cv2.polylines(display, [outline], True, accent, 2, cv2.LINE_AA)
+    cv2.line(display, point(u_min, 1), point(u_max, 1), accent, 3, cv2.LINE_AA)        # fret 12
+    ui.text(display, "NUT", (outline[0][0] - 8, outline[0][1] - 12), 0.5, accent, 1)
+    ui.text(display, "FRET 12", (outline[2][0] - 56, outline[2][1] + 22), 0.5, accent, 1)
 
 
 def calibration_step(frame, markers, hands, history, found=None):

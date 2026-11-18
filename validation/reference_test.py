@@ -126,7 +126,7 @@ def main():
         img = np.full((H, W, 3), 100, np.uint8)
         draw_click_guide(img, step, now)
         x0, y0 = GUIDE_ORIGIN
-        return img, img[y0 - 14:y0 + GUIDE_SIZE[1] + 14, x0:x0 + GUIDE_SIZE[0]]
+        return img, img[y0:y0 + GUIDE_SIZE[1] + 1, x0:x0 + GUIDE_SIZE[0] + 1]
     full0, mini0 = guide(0, 0.0)
     _, mini1 = guide(1, 0.0)
     _, mini0_later = guide(0, 0.26)
@@ -135,7 +135,7 @@ def main():
     check("and pulses (the ring grows and shrinks over time)", not np.array_equal(mini0, mini0_later))
     outside = np.ones(full0.shape[:2], bool)
     x0, y0 = GUIDE_ORIGIN
-    outside[y0 - 16:y0 + GUIDE_SIZE[1] + 16, x0:x0 + GUIDE_SIZE[0] + 2] = False
+    outside[y0 - 2:y0 + GUIDE_SIZE[1] + 3, x0 - 2:x0 + GUIDE_SIZE[0] + 3] = False
     check("nothing is drawn on the photo itself, only in the little neck", bool((full0[outside] == 100).all()))
     _, done = guide(4, 0.0)
     check("after the four clicks the guide has no pulsing ring", not np.array_equal(mini0, done))

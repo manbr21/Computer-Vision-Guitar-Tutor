@@ -20,8 +20,8 @@ python -m chordar
 
 1. **Photo.** Hold the guitar as you will play it, inside the outline drawn on the screen, with your hand off the neck,
    and press SPACE. The screen warns if the light is too dark, too bright or from behind.
-2. **Four clicks** on the neck, in the order the screen asks (a small see-through neck in the corner of the screen shows the corner
-   to click next with a pulsing ring, and the same ring pulses on the photo where that corner should be) (the nut at the low E and the high e string, then the
+2. **Four clicks** on the neck, in the order the screen asks (a large see-through neck in a panel at the top left shows the corner
+   to click next with a pulsing ring, with the position dots that tell the 12th fret; nothing is marked on the photo) (the nut at the low E and the high e string, then the
    12th fret wire at the high e and the low E string). Click on the nut edge on the fretboard side and on the 12th fret
    wire; the program then finds the real fret wires in the photo and snaps your clicks onto them, so a few pixels of
    error do not matter (U switches back to your raw clicks). ENTER saves; T takes a new photo.
@@ -34,12 +34,12 @@ taking a new one (it only works with similar light and a guitar held in a simila
 | Key | Action |
 |-----|--------|
 | `1`-`8` | choose the chord (A, Am, C, D, Dm, E, Em, G) |
-| `]` / `[` | move the virtual capo up / down a fret (up to fret 7); `0` removes it |
+| `]` / `[` | move the virtual capo up / down a fret (up to fret 4); `0` removes it |
 | `A` | auto-advance: a perfect strum moves to the next chord |
 | `C` | take a new photo (ESC there keeps the current one) |
 | `O` | hide / show the neck markings (outline, frets, strings); the fingers and the chord targets stay |
 | `Z` | zoom the screen on the neck and the hand (about 2x, display only: the detection always sees the whole frame) |
-| `H` | list of the keys |
+| `H` | the keys, by what they do (the most useful ones are always on the bar at the bottom left) |
 | `ESC` | quit |
 
 Keys for tuning, not shown in the app's help: `D` technical panel (pose, parallax, fingertip labels, FPS, microphone
@@ -166,6 +166,7 @@ python validation/frets_test.py                  # fret-wire snapping on a synth
 python validation/reference_test.py              # marker-free tracker on a synthetic textured scene
 python validation/scoring_test.py                # each finger on its own note, the shared shift, the steadying
 python validation/hands_region_test.py           # the region where the fretting hand is looked for
+python validation/ui_test.py                     # set-up screens, key bar and help
 python validation/zoom_test.py                   # the zoomed view and the limit of the live fret fit at the nut
 python validation/coaching_test.py               # finger coaching messages
 python validation/capo_test.py                   # virtual capo: shifted notes, score, keys and drawing
@@ -202,10 +203,10 @@ at 30 deg; with it, it stays at ~100%.
   (1.5x, 2x) changed nothing (80% of the notes, same jitter): the limit is the model and the finger hiding its own tip, not the
   pixels, so `Z` helps the player see the dots and does not help the detection. The index finger on frets 1 and 2 is the least
   reliable. A camera at the height of the neck or a little above works best.
-- With the capo above fret 4 the fingers are read poorly: the hand turns and its fingers bunch up, and on a recording with the capo on 5 and 7
-  only about a third of the notes were covered (capo 2: 99%). The region where the hand is looked for follows the capo (it raised 24% and 16% to
-  37% and 35%), and the app says so on the screen above fret 4. The neck does follow the guitar when the player drags it sideways (it
-  moved 28 px in a Dm), so that is real movement, not an error of the tracking.
+- The capo goes up to fret 4 only. On a recording with it on 5 and 7 only about a third of the notes were covered (capo 2: 99%): the hand
+  turns and its fingers bunch up, so the order index-middle-ring across the strings is lost (a ring finger whose tip is fully in view
+  was read two strings low). The region where the hand is looked for follows the capo (it raised 24% and 16% to 37% and 35%). The neck
+  does follow the guitar when the player drags it sideways (it moved 28 px in a Dm), so that is real movement, not an error of the tracking.
 - The photo only works with light and distance similar to when it was taken; with much dimmer or backlit light the
   neck may not be found (take a new photo with C).
 - Tracking is validated against ArUco markers on six recorded sessions of one user, one guitar and one laptop.
