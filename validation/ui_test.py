@@ -48,7 +48,7 @@ def main():
     app.show_help = True
     helped = app.process_frame(frame, 0.0)
     check("the help panel opens at the bottom left, over the key bar (nothing changes above 60% of the height)",
-          float(np.abs(helped[:430].astype(int) - 90).mean()) < 1 and float(np.abs(helped[480:710, 12:1000].astype(int) - 90).mean()) > 5)
+          np.array_equal(helped[:430], plain[:430]) and float(np.abs(helped[480:710, 12:1000].astype(int) - plain[480:710, 12:1000]).mean()) > 5)
     from chordar.overlay import draw_arrow
     a0, a1 = np.full((200, 400, 3), 90, np.uint8), np.full((200, 400, 3), 90, np.uint8)
     draw_arrow(a0, (50, 100), (300, 100), 10, now=0.0)
