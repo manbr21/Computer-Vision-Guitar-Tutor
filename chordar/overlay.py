@@ -1,4 +1,7 @@
 """Everything drawn over the video: text, neck grid, chord targets, fingertip labels and the chord diagram."""
+import math
+import time
+
 import cv2
 import numpy as np
 
@@ -65,10 +68,10 @@ def target_radius(neck=None):
     return TARGET_RADIUS
 
 
-def draw_chord_targets(display, neck, notes, done=None, highlight=None):
+def draw_chord_targets(display, neck, notes, done=None, highlight=None, now=None):
     """
     Dots numbered with the finger that belongs on each fretted note (1 index ... 4 pinky), yellow while the note is
-    missing and green once it is covered. The note `highlight` (an index) gets an orange ring: it is where the arrow points.
+    missing and green once it is covered. The note `highlight` (an index) gets an orange ring that pulses: it is where the arrow points.
     """
     radius = target_radius(neck)
     scale, thickness = 0.5, 1
@@ -80,19 +83,41 @@ def draw_chord_targets(display, neck, notes, done=None, highlight=None):
         (w, h), _ = cv2.getTextSize(str(finger), FONT, scale, thickness)
         cv2.putText(display, str(finger), (x - w // 2, y + h // 2), FONT, scale, (255, 255, 255) if covered else (0, 0, 0), thickness, cv2.LINE_AA)
         if i == highlight:
-            cv2.circle(display, (x, y), radius + 3, (0, 140, 255), 2, cv2.LINE_AA)
+            pulse = 0.5 + 0.5 * math.sin((time.time() if now is None else now) * 7)
+            cv2.circle(display, (x, y), radius + 3 + int(round(3 * pulse)), (0, 140, 255), 2, cv2.LINE_AA)
 
 
-def draw_arrow(display, start, end, stop_short=0):
-    """Arrow from a fingertip to the note it should cover, ending `stop_short` pixels before the note's center."""
+def draw_arrow(display, start, end, stop_short=0, now=None):
+    """
+    Arrow from a fingertip to the note it should cover, ending `stop_short` pixels before the note's center. It is animated: dashes
+    run along it toward the note and the head swells and shrinks, so it reads as "move there" even in a still frame.
+    """
+    now = time.time() if now is None else now
     length = np.hypot(end[0] - start[0], end[1] - start[1])
     if length > 12 + stop_short:
         end = (start[0] + (end[0] - start[0]) * (length - stop_short) / length,
                start[1] + (end[1] - start[1]) * (length - stop_short) / length)
         length -= stop_short
-        # the arrow head has a fixed size in pixels: a head proportional to a long arrow would be enormous
-        cv2.arrowedLine(display, tuple(int(v) for v in start), tuple(int(v) for v in end), (0, 140, 255), 3,
-                        tipLength=min(0.25, 14 / length))
+        direction = ((end[0] - start[0]) / length, (end[1] - start[1]) / length)
+        head = min(16.0, length * 0.6) * (0.9 + 0.2 * (0.5 + 0.5 * math.sin(now * 8)))   # the head has a size in pixels, not proportional to the arrow
+        body = length - head * 0.8
+        dash, gap, speed = 9.0, 7.0, 70.0
+        offset = (now * speed) % (dash + gap)                 # the dashes travel toward the note
+        position = -offset
+        while position < body:
+            a, b = max(position, 0.0), min(position + dash, body)
+            if b > a:
+                p0 = (int(start[0] + direction[0] * a), int(start[1] + direction[1] * a))
+                p1 = (int(start[0] + direction[0] * b), int(start[1] + direction[1] * b))
+                cv2.line(display, p0, p1, (0, 140, 255), 4, cv2.LINE_AA)
+            position += dash + gap
+        tip = (int(end[0]), int(end[1]))
+        side = (-direction[1], direction[0])
+        base = (end[0] - direction[0] * head, end[1] - direction[1] * head)
+        triangle = np.array([tip, (int(base[0] + side[0] * head * 0.55), int(base[1] + side[1] * head * 0.55)),
+                             (int(base[0] - side[0] * head * 0.55), int(base[1] - side[1] * head * 0.55))], np.int32)
+        cv2.fillConvexPoly(display, triangle, (0, 140, 255), cv2.LINE_AA)
+
 
 
 def draw_fingertips(display, neck, fingertips, parallax, debug=False, touch_points=None):

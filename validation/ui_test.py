@@ -47,8 +47,14 @@ def main():
     check("the playing screen has the key bar at the bottom left", float(np.abs(plain[670:710, 12:400].astype(int) - 90).mean()) > 2)
     app.show_help = True
     helped = app.process_frame(frame, 0.0)
-    check("the help panel covers the top of the frame only (the neck, at 55-80% of the height, stays visible)",
-          float(np.abs(helped[400:600].astype(int) - 90).mean()) < 1 and float(np.abs(helped[110:330, 20:1000].astype(int) - 90).mean()) > 5)
+    check("the help panel opens at the bottom left, over the key bar (nothing changes above 60% of the height)",
+          float(np.abs(helped[:430].astype(int) - 90).mean()) < 1 and float(np.abs(helped[480:710, 12:1000].astype(int) - 90).mean()) > 5)
+    from chordar.overlay import draw_arrow
+    a0, a1 = np.full((200, 400, 3), 90, np.uint8), np.full((200, 400, 3), 90, np.uint8)
+    draw_arrow(a0, (50, 100), (300, 100), 10, now=0.0)
+    draw_arrow(a1, (50, 100), (300, 100), 10, now=0.05)
+    check("the arrow is animated (its dashes move with time)", not np.array_equal(a0, a1))
+    check("... and still points at the note (the head is near the end)", float(np.abs(a0[90:110, 280:292].astype(int) - 90).mean()) > 20)
     if failures:
         print("\nFAIL:\n  " + "\n  ".join(failures))
         sys.exit(1)

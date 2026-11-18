@@ -119,10 +119,10 @@ class ChordARApp:
             if self.capo:
                 draw_capo(display, neck, self.capo)
             highlight = notes.index(coaching.fix[0]) if coaching.fix is not None else None
-            draw_chord_targets(display, neck, notes, coaching.done, highlight)
+            draw_chord_targets(display, neck, notes, coaching.done, highlight, now)
             if coaching.fix is not None:
                 note, pixel = coaching.fix
-                draw_arrow(display, pixel, neck.target(note[0], note[1]), stop_short=target_radius(neck) + 6)
+                draw_arrow(display, pixel, neck.target(note[0], note[1]), stop_short=target_radius(neck) + 6, now=now)
             touch_points = corrected_points(notes, fingertips, neck, self.parallax_on, reading_bias(self.chord, self.capo))
             draw_fingertips(display, neck, fingertips, self.parallax_on, self.debug_info, touch_points)
             score = int(100 * sum(coaching.done) / len(notes)) if notes else None
@@ -234,23 +234,25 @@ class ChordARApp:
         draw_chord_diagram(display, x, y, width, height, self.chord, self.capo)
 
     def _draw_help(self, display):
-        """The keys, by what they do, in a panel under the header (H closes it): the chords in a row, then one column per topic."""
-        x, y, width, row = 20, 108, 1000, 32
-        height = 36 + 56 + 24 + 3 * row + 14
-        ui.panel(display, x, y, x + width, y + height, alpha=0.84, radius=14, border=ui.ACCENT_DIM)
-        ui.text(display, "KEYS", (x + 18, y + 28), 0.6, ui.ACCENT, 1, shadow=False)
-        ui.text(display, "Press H to close", (x + width - 150, y + 28), 0.45, ui.MUTED, 1, shadow=False)
-        ui.text(display, "CHORD", (x + 18, y + 56), 0.45, ui.MUTED, 1, shadow=False)
+        """The keys, by what they do, in a panel at the bottom left where the key bar is (H closes it): the chords in a row, then one column per topic."""
+        h = display.shape[0]
+        width, row = 1000, 29
+        height = 34 + 50 + 22 + 3 * row + 12
+        x, y = 12, h - 10 - height
+        ui.panel(display, x, y, x + width, y + height, alpha=0.86, radius=14, border=ui.ACCENT_DIM)
+        ui.text(display, "KEYS", (x + 18, y + 26), 0.6, ui.ACCENT, 1, shadow=False)
+        ui.text(display, "Press H to close", (x + width - 150, y + 26), 0.45, ui.MUTED, 1, shadow=False)
+        ui.text(display, "CHORD", (x + 18, y + 54), 0.45, ui.MUTED, 1, shadow=False)
         for i, name in enumerate(CHORD_NAMES):          # 1 A  2 Am  3 C ...
             cx = x + 90 + i * 110
-            end = ui.key_cap(display, str(i + 1), cx, y + 38)
-            ui.text(display, name, (end + 8, y + 59), 0.55, ui.TEXT, 1, shadow=False)
+            end = ui.key_cap(display, str(i + 1), cx, y + 36, 0.5)
+            ui.text(display, name, (end + 8, y + 56), 0.55, ui.TEXT, 1, shadow=False)
         for column, (title, items) in enumerate(HELP_SECTIONS):
-            cx, cy = x + 18 + column * 245, y + 36 + 56
+            cx, cy = x + 18 + column * 245, y + 34 + 50
             ui.text(display, title, (cx, cy + 4), 0.45, ui.MUTED, 1, shadow=False)
             for k, (key, what) in enumerate(items):
-                end = ui.key_cap(display, key, cx, cy + 14 + k * row)
-                ui.text(display, what, (end + 10, cy + 14 + k * row + 21), 0.5, ui.TEXT, 1, shadow=False)
+                end = ui.key_cap(display, key, cx, cy + 12 + k * row, 0.5)
+                ui.text(display, what, (end + 10, cy + 12 + k * row + 19), 0.5, ui.TEXT, 1, shadow=False)
 
     def _draw_key_bar(self, display):
         """The few keys that matter, always at the bottom left."""

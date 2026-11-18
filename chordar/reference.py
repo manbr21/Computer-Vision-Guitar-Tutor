@@ -166,9 +166,9 @@ def click_screen(view, clicks, chosen=None, info=None, hint=None, warned=False, 
     shown = view.copy()
     h, w = shown.shape[:2]
     for i, (x, y) in enumerate(clicks):
-        cv2.circle(shown, (x, y), 7, ui.BAD, -1, cv2.LINE_AA)
-        cv2.circle(shown, (x, y), 9, (255, 255, 255), 1, cv2.LINE_AA)
-        ui.text(shown, str(i + 1), (x + 12, y - 10), 0.7, (0, 255, 255), 2)
+        cv2.circle(shown, (x, y), 5, (0, 0, 0), -1, cv2.LINE_AA)       # small, in the colour of the example clicks, with a dark rim to see it on the wood
+        cv2.circle(shown, (x, y), 3, ui.GOOD, -1, cv2.LINE_AA)
+        ui.text(shown, str(i + 1), (x + 8, y - 8), 0.6, ui.GOOD, 2)
     if len(clicks) < 4:
         ui.header(shown, "STEP 2 OF 2", "Mark the four corners of the neck", f"Click {len(clicks) + 1} of 4: {CORNER_TEXT[len(clicks)]}")
         draw_click_guide(shown, len(clicks), now)
